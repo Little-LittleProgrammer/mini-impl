@@ -1,0 +1,47 @@
+{
+    "name": "mini-vite",
+    "version": "1.0.0",
+    "description": "",
+    "type": "module",
+    "main": "index.js",
+    "bin": {
+      "mini-vite": "bin/mini-vite.js"
+    },
+    "scripts": {
+      "test": "echo \"Error: no test specified\" && exit 1",
+      "dev": "rimraf dist && pnpm run build-bundle -w",
+      "build": "rimraf dist && run-s build-bundle",
+      "build-bundle": "rollup --config rollup.config.ts --configPlugin typescript"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "devDependencies": {
+      "@types/connect": "catalog:",
+      "@types/debug": "catalog:",
+      "@types/fs-extra": "catalog:",
+      "@types/node": "catalog:",
+      "@types/resolve": "catalog:",
+      "npm-run-all2": "catalog:",
+      "rimraf": "catalog:"
+    },
+    "dependencies": {
+      "@rollup/plugin-typescript": "catalog:",
+      "cac": "catalog:",
+      "chokidar": "catalog:",
+      "connect": "catalog:",
+      "debug": "catalog:",
+      "es-module-lexer": "catalog:",
+      "esbuild": "catalog:",
+      "fs-extra": "catalog:",
+      "magic-string": "catalog:",
+      "picocolors": "catalog:",
+      "resolve": "catalog:",
+      "rollup": "catalog:",
+      "sirv": "catalog:",
+      "tslib": "catalog:",
+      "typescript": "catalog:",
+      "vue": "catalog:",
+      "ws": "catalog:"
+    }
+  }
