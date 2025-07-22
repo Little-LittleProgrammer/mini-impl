@@ -1,0 +1,40 @@
+{
+    "name": "mini-impl",
+    "private": true,
+    "type": "module",
+    "version": "0.0.0",
+    "scripts": {
+        "build": "turbo run build",
+        "dev": "turbo run dev",
+        "lint": "turbo run lint",
+        "test": "turbo run test",
+        "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+        "commit": "czg",
+        "prepare": "husky"
+    },
+    "devDependencies": {
+        "@changesets/cli": "catalog:",
+        "@quantum-design-configs/commitlint": "catalog:",
+        "@quantum-design-configs/eslint": "catalog:",
+        "@types/node": "catalog:",
+        "husky": "catalog:",
+        "tslib": "catalog:",
+        "turbo": "catalog:",
+        "typescript": "catalog:"
+    },
+    "engines": {
+        "pnpm": ">=10.0.0",
+        "node": ">=20.19.0"
+    },
+    "packageManager": "pnpm@10.13.1",
+    "pnpm": {
+        "overrides": {
+            "eslint": "catalog:",
+            "@sentry/cli": "catalog:"
+        }
+    },
+    "volta": {
+        "node": "20.19.4",
+        "pnpm": "10.13.1"
+    }
+}
