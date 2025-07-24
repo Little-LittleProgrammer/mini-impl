@@ -84,3 +84,4 @@ catalog:
   "@modelcontextprotocol/sdk": "^1.8.0"
   "dotenv": "^16.4.5"
   "express": "^5.0.1"
+  "pinia": "^3.0.1"

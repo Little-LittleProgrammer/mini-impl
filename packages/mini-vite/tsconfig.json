@@ -1,43 +1,13 @@
-   // https://www.typescriptlang.org/tsconfig，也可以使用 tsc -init 生成默认的 tsconfig.json 文件进行属性查找
-   {
-    // 编辑器配置
+{
+    // 指定此配置文件继承自其他配置文件
+    "extends": "./tsconfig.base.json",
+    // 指定编译选项
     "compilerOptions": {
-        // 根目录
-        "rootDir": ".",
-        // 严格模式标志
-        "strict": true,
-        // 指定类型脚本如何从给定的模块说明符查找文件。
-        "moduleResolution": "node",
-        // https://www.typescriptlang.org/tsconfig#esModuleInterop
-        "esModuleInterop": true,
-        // JS 语言版本
-        "target": "es5",
-        "allowJs": true,
-        // 允许未读取局部变量
-        "noUnusedLocals": false,
-        // 允许未读取的参数
-        "noUnusedParameters": false,
-        // 允许解析 json
-        "resolveJsonModule": true,
-        // 支持语法迭代：https://www.typescriptlang.org/tsconfig#downlevelIteration
-        "downlevelIteration": true,
-        // 允许使用隐式的 any 类型（这样有助于我们简化 ts 的复杂度，从而更加专注于逻辑本身）
-        "noImplicitAny": false,
-        // 模块化
-        "module": "esnext",
-        // 转换为 JavaScript 时从 TypeScript 文件中删除所有注释。
-        "removeComments": false,
-        // 禁用 sourceMap
-        "sourceMap": false,
-        // https://www.typescriptlang.org/tsconfig#lib
-        "lib": ["esnext", "dom"],
-        "baseUrl": ".",
-        "paths": {
-            "@vue/*": ["packages/*/src"]
-        }
-    },
-    // 入口
-    "include": [
-        "packages/*/src"
-    ]
+      // 启用 ECMAScript 模块和 CommonJS 模块之间的互操作性
+      "esModuleInterop": true,
+      // 是否生成声明文件（.d.ts）
+      "declaration": false,
+      // 是否解析 JSON 文件中的模块
+      "resolveJsonModule": true,
+    }
 }

@@ -29,8 +29,7 @@
     "packageManager": "pnpm@10.13.1",
     "pnpm": {
         "overrides": {
-            "eslint": "catalog:",
-            "@sentry/cli": "catalog:"
+            "eslint": "catalog:"
         }
     },
     "volta": {

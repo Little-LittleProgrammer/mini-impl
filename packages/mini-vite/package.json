@@ -11,7 +11,7 @@
       "test": "echo \"Error: no test specified\" && exit 1",
       "dev": "rimraf dist && pnpm run build-bundle -w",
       "build": "rimraf dist && run-s build-bundle",
-      "build-bundle": "rollup --config rollup.config.ts --configPlugin typescript"
+      "build-bundle": "rollup --config rollup.config.js --configPlugin typescript"
     },
     "keywords": [],
     "author": "",
