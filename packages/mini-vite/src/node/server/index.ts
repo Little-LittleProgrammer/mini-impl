@@ -5,17 +5,47 @@ import colors from 'picocolors'
 // 用于读取文件
 import { readFileSync } from 'node:fs'
 import { optimizeDeps } from '../optimizer'
+import { createPluginContainer, type PluginContainer } from './pluginContainer'
+import { Plugin } from "../plugin";
+
+import { indexHtmlMiddleware } from './middlewares/indexHtml'
+
+export interface ServerContext {
+    root: string;
+    pluginContainer: PluginContainer;
+    app: connect.Server;
+    plugins: Plugin[];
+}
 
 const { version } = JSON.parse(
     readFileSync(new URL('../../package.json', import.meta.url)).toString()
 )
 
-const port = 3001
+
 
 export async function startDevServer() {
     const app = connect()
-    const startTime = Date.now()
+    const startTime = Date.now();
+    const plugins: Plugin[] = []; // TODO: 后面补充
+    const pluginContainer = createPluginContainer({
+        plugins
+    });
+    const serverContext: ServerContext = {
+        root: process.cwd(),
+        app,
+        pluginContainer,
+        plugins,
+    }
+    
+    app.use(indexHtmlMiddleware(serverContext));
 
+    for (const plugin of plugins) {
+        if (plugin.configureServer) {
+            await plugin.configureServer(serverContext);
+        }
+    }
+
+    const port = 3001
     app.listen(port, async () => {
         await optimizeDeps({
             root: process.cwd()

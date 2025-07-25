@@ -14,7 +14,6 @@
     },
     "devDependencies": {
         "@changesets/cli": "catalog:",
-        "@quantum-design-configs/commitlint": "catalog:",
         "@quantum-design-configs/eslint": "catalog:",
         "@types/node": "catalog:",
         "husky": "catalog:",

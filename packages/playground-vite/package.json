@@ -1,19 +1,21 @@
 {
-  "name": "playground-vite",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vue-tsc -b && vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "pinia": "catalog:",
-    "lodash-es": "catalog:",
-    "vue": "catalog:"
-  },
-  "devDependencies": {
-    "mini-vite": "workspace:*"
+    "name": "playground-vite",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+      "test": "echo \"Error: no test specified\" && exit 1",
+      "dev": "mini-vite"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+      "lodash-es": "catalog:",
+      "pinia": "catalog:",
+      "vue": "catalog:"
+    },
+    "devDependencies": {
+      "mini-vite": "workspace:*"
+    }
   }
-}

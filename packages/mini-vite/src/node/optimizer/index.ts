@@ -24,4 +24,13 @@ export async function optimizeDeps(config: OptimizeDepsOptions) {
             .join('\n')}\n\n`
     )
     // 3. 预构建依赖
+    await build({
+        entryPoints: [entry],
+        bundle: true,
+        write: false,
+        splitting: true,
+        format: 'esm',
+        external: [...deps],
+        outdir: path.resolve(config.root, path.join('node_modules', '.mini-vite', 'deps'))
+    })
 }
