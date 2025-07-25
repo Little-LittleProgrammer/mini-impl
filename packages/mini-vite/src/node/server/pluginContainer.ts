@@ -9,6 +9,7 @@ import {
     PluginContext,
     ResolvedId
 } from 'rollup'
+import { TransformResult } from '../transformRequest'
 
 /**
  * 插件容器
@@ -82,7 +83,7 @@ export interface PluginContainer {
             inMap?: SourceDescription['map']
             ssr?: boolean
         }
-    ): Promise<SourceDescription | null>
+    ): Promise<TransformResult | null>
 
     /**
      * 加载模块内容

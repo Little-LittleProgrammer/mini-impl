@@ -9,6 +9,7 @@ import { createPluginContainer, type PluginContainer } from './pluginContainer'
 import { Plugin } from "../plugin";
 
 import { indexHtmlMiddleware } from './middlewares/indexHtml'
+import { transformMiddleware } from './middlewares/transform'
 
 export interface ServerContext {
     root: string;
@@ -38,6 +39,7 @@ export async function startDevServer() {
     }
     
     app.use(indexHtmlMiddleware(serverContext));
+    app.use(transformMiddleware(serverContext));
 
     for (const plugin of plugins) {
         if (plugin.configureServer) {
