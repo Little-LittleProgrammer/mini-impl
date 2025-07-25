@@ -44,3 +44,14 @@ export function isJsRequest(url: string): boolean {
     }
     return false;
 }
+
+const importQueryRE = /(\?|&)import=?(?:&|$)/
+const trailingSeparatorRE = /[?&]$/
+/**
+ * 判断是否为 import 请求
+ */
+export function isImportRequest(url: string): boolean {
+    url = cleanUrl(url);
+    // 如果 URL 中包含 import 查询参数，或者 URL 以 ? 或 & 结尾，则认为是 import 请求
+    return importQueryRE.test(url) || trailingSeparatorRE.test(url);
+}
