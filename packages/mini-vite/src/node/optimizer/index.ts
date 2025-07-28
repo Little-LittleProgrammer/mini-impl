@@ -3,7 +3,6 @@ import { OptimizeDepsOptions } from './types'
 import colors from 'picocolors'
 import { esbuildScanPlugin } from './scanPlugin'
 import { build } from 'esbuild'
-import fse from 'fs-extra'
 
 export async function optimizeDeps(config: OptimizeDepsOptions) {
     console.log('>>>optimizeDeps', config)
@@ -34,5 +33,19 @@ export async function optimizeDeps(config: OptimizeDepsOptions) {
         splitting: true,
         logLevel: 'error',
         outdir: path.resolve(config.root, path.join('node_modules', '.mini-vite', 'deps')),
+        // 增强的 CommonJS 支持配置
+        platform: 'browser',
+        target: 'esnext',
+        mainFields: ['module', 'browser', 'main'],
+        conditions: ['module', 'browser', 'import'],
+        // 确保 CommonJS 模块正确转换为 ES 模块
+        banner: {
+            js: '// CommonJS to ESM转换\n',
+        },
+        // 处理一些可能的 CommonJS 全局变量
+        define: {
+            'global': 'globalThis',
+            'process.env.NODE_ENV': '"development"'
+        }
     })
 }

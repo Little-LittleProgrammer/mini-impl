@@ -1,28 +1,46 @@
 // import Vue from 'mini-vue'
 import './style.css'
-// import * as  _ from 'lodash-es'
+import * as  _ from 'lodash-es'
 // import App from './App.vue'
 
-// CommonJS 模块使用示例
-const math = require('./math.js');
-const calculator = require('./calculator.js');
+console.log('🚀 测试 ESM 模块支持...');
+console.log(_.merge([1], [2, 3]));
 
-// console.log(_.merge([1], [2, 3]));
-
+console.log('🚀 测试 CommonJS 模块支持...');
+// 测试 1: ES 模块导入 CommonJS (exports.xxx)
+import * as math from './math.js';
+console.log('📊 数学模块测试:');
 console.log('Addition: 5 + 3 =', math.add(5, 3));
 console.log('Subtraction: 5 - 3 =', math.subtract(5, 3));
 console.log('Multiplication: 5 * 3 =', math.multiply(5, 3));
 console.log('Division: 6 / 3 =', math.divide(6, 3));
+console.log('Constants - PI:', math.PI, 'E:', math.E);
 
-// 使用更复杂的计算器模块
-console.log('Formatted Addition: 5.5 + 3.7 =', calculator.addFormatted(5.5, 3.7));
-console.log('Formatted Subtraction: 10.9 - 3.2 =', calculator.subtractFormatted(10.9, 3.2));
-console.log('Formatted Multiplication: 4.5 * 2.2 =', calculator.multiplyFormatted(4.5, 2.2));
-console.log('Formatted Division: 15.8 / 3.3 =', calculator.divideFormatted(15.8, 3.3));
+// 测试 2: ES 模块导入 CommonJS (module.exports)
+import calculatorModule from './calculator.js';
+const { Calculator, createCalculator } = calculatorModule;
 
-// 随机计算示例
-console.log('Random calculation:', calculator.randomCalc());
-console.log('Random calculation:', calculator.randomCalc());
-console.log('Random calculation:', calculator.randomCalc());
+console.log('\n🧮 计算器模块测试:');
+
+const calc = createCalculator();
+const result = calc.add(10).multiply(2).subtract(5).divide(3).getValue();
+console.log('链式计算 (10 + 10) * 2 - 5 / 3 =', result);
+
+// 测试 3: 使用构造函数
+const calc2 = new Calculator();
+calc2.add(100).multiply(0.1);
+console.log('构造函数测试: 100 * 0.1 =', calc2.getValue());
+
+// 测试 4: 模拟 require() 调用（如果支持的话）
+try {
+    console.log('\n📦 测试 require() 支持（实验性）:');
+    // 注意：这里的 require 是我们在 CommonJS 插件中提供的 polyfill
+    // const mathRequired = require('./math.js');
+    // console.log('require() test - math.add(1, 2):', mathRequired.add ? mathRequired.add(1, 2) : 'require() polyfill 激活');
+} catch (e) {
+    console.log('require() 测试失败:', e.message);
+}
+
+console.log('\n✅ CommonJS 模块测试完成!');
 
 // Vue.createApp()

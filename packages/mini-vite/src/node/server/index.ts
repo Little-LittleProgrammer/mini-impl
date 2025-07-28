@@ -14,7 +14,7 @@ import { esbuildTransformPlugin } from '../plugins/esbuild'
 import { importAnalysisPlugin } from '../plugins/importAnalysis'
 import resolvePlugin from '../plugins/resolve'
 import { cssPlugin } from '../plugins/css'
-import { cjsPlugin } from '../plugins/cjs'
+import { commonjsPlugin } from '../plugins/cjs'
 
 export interface ServerContext {
     root: string;
@@ -27,12 +27,10 @@ const { version } = JSON.parse(
     readFileSync(new URL('../../package.json', import.meta.url)).toString()
 )
 
-
-
 export async function startDevServer() {
     const app = connect()
     const startTime = Date.now();
-    const plugins: Plugin[] = [resolvePlugin(), esbuildTransformPlugin(), importAnalysisPlugin(), cjsPlugin(), cssPlugin()];
+    const plugins: Plugin[] = [resolvePlugin(), esbuildTransformPlugin(), commonjsPlugin(), importAnalysisPlugin(), cssPlugin()];
     const pluginContainer = createPluginContainer({
         plugins
     });

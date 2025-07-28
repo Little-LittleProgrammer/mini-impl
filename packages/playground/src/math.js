@@ -1,33 +1,28 @@
 // CommonJS 模块示例
-// math.js
+// 使用 exports.xxx 导出
 
-// 导出加法函数
+// 基础数学运算
 exports.add = function(a, b) {
     return a + b;
 };
 
-// 导出减法函数
 exports.subtract = function(a, b) {
     return a - b;
 };
 
-// 导出乘法函数
 exports.multiply = function(a, b) {
     return a * b;
 };
 
-// 导出除法函数
 exports.divide = function(a, b) {
     if (b === 0) {
-        throw new Error("Division by zero");
+        throw new Error('除数不能为零');
     }
     return a / b;
 };
 
-// 默认导出一个包含所有函数的对象
-module.exports = {
-    add: exports.add,
-    subtract: exports.subtract,
-    multiply: exports.multiply,
-    divide: exports.divide
-};
+// 常量导出
+exports.PI = 3.14159;
+exports.E = 2.71828;
+
+console.log('CommonJS math 模块已加载');

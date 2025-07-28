@@ -1,53 +1,47 @@
-// calculator.js - 使用其他模块的 CommonJS 示例
+// CommonJS 模块示例 - 使用 module.exports
 
-// 引入我们自己创建的模块
-const math = require('./math.js');
-const utils = require('./utils.js');
+function Calculator() {
+    this.result = 0;
+}
 
-// 创建计算器对象
-const calculator = {
-    // 带格式化的加法
-    addFormatted: function(a, b) {
-        const result = math.add(a, b);
-        return utils.formatNumber(result);
-    },
-    
-    // 带格式化的减法
-    subtractFormatted: function(a, b) {
-        const result = math.subtract(a, b);
-        return utils.formatNumber(result);
-    },
-    
-    // 带格式化的乘法
-    multiplyFormatted: function(a, b) {
-        const result = math.multiply(a, b);
-        return utils.formatNumber(result);
-    },
-    
-    // 带格式化的除法
-    divideFormatted: function(a, b) {
-        const result = math.divide(a, b);
-        return utils.formatNumber(result);
-    },
-    
-    // 随机计算
-    randomCalc: function() {
-        const a = utils.random(1, 100);
-        const b = utils.random(1, 100);
-        const ops = ['+', '-', '*', '/'];
-        const op = ops[utils.random(0, 3)];
-        
-        let result;
-        switch(op) {
-            case '+': result = math.add(a, b); break;
-            case '-': result = math.subtract(a, b); break;
-            case '*': result = math.multiply(a, b); break;
-            case '/': result = math.divide(a, b); break;
-        }
-        
-        return `${a} ${op} ${b} = ${utils.formatNumber(result)}`;
-    }
+Calculator.prototype.add = function(value) {
+    this.result += value;
+    return this;
 };
 
-// 导出计算器
-module.exports = calculator;
+Calculator.prototype.subtract = function(value) {
+    this.result -= value;
+    return this;
+};
+
+Calculator.prototype.multiply = function(value) {
+    this.result *= value;
+    return this;
+};
+
+Calculator.prototype.divide = function(value) {
+    if (value === 0) {
+        throw new Error('除数不能为零');
+    }
+    this.result /= value;
+    return this;
+};
+
+Calculator.prototype.clear = function() {
+    this.result = 0;
+    return this;
+};
+
+Calculator.prototype.getValue = function() {
+    return this.result;
+};
+
+// 工具函数
+function createCalculator() {
+    return new Calculator();
+}
+
+// 使用 module.exports 导出
+module.exports = {  Calculator: Calculator, createCalculator: createCalculator};
+
+console.log('Calculator 模块已加载');
