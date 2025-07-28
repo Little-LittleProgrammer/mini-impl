@@ -21,6 +21,16 @@ export default [
 				format: 'iife',
 				// 变量名
 				name: 'Vue'
+			},
+            {
+				// 开启 SourceMap
+				sourcemap: true,
+				// 导出的文件地址
+				file: './packages/vue/dist/vue-esm.js',
+				// 生成的包格式：一个自动执行的功能，适合作为<script>标签
+				format: 'esm',
+				// 变量名
+				name: 'VueEsm'
 			}
 		],
 		// 插件

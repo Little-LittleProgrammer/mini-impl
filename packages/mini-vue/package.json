@@ -2,7 +2,7 @@
   "name": "mini-vue",
   "version": "1.0.0",
   "description": "",
-  "main": "./packages/vue/dist/vue.js",
+  "main": "./packages/vue/dist/vue-esm.js",
   "type": "module",
   "scripts": {
     "build": "rollup -c",

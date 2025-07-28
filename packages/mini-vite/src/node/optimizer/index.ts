@@ -11,6 +11,9 @@ export async function optimizeDeps(config: OptimizeDepsOptions) {
     // 2. 从入口文件开始扫描依赖项
     const deps = new Set<string>()
     console.debug(colors.green('>>>扫描依赖项...... \n'))
+    /**
+     * 扫描依赖项，将依赖项添加到 deps 集合中
+     */
     await build({
         entryPoints: [entry],
         bundle: true,

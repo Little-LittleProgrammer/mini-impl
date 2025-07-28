@@ -2,6 +2,26 @@
 import './style.css'
 import * as  _ from 'lodash-es'
 // import App from './App.vue'
+import { createApp, reactive, h } from 'mini-vue'
+
+console.log('🚀 测试 Vue 模块支持...');
+const APP = {
+    setup() {
+      const obj = reactive({
+        name: 'this is mini-vue'
+      })
+
+      setTimeout(() => {
+        obj.name = 'this is mini-vue test reactive'
+      }, 2000);
+
+      return () => h('div', obj.name)
+    }
+  }
+// 通过 createAPP 标记挂载组件
+const app = createApp(APP)
+// 挂载位置
+app.mount('#app')
 
 console.log('🚀 测试 ESM 模块支持...');
 console.log(_.merge([1], [2, 3]));

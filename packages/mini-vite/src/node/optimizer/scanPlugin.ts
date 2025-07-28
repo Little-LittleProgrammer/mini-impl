@@ -12,7 +12,7 @@ import { externalTypes } from '../constants'
  */
 export function esbuildScanPlugin(depImports: Set<string>): Plugin {
     return {
-        name: 'vite:dep-scan',
+        name: 'mini-vite:dep-scan',
         // setup 是 esbuild 插件的入口函数，esbuild 在初始化时会调用它，并传入一个 build 对象。
         // 我们可以通过 build 对象上的钩子（hooks）来介入构建过程。
         setup(build) {

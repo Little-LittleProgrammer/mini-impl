@@ -7,6 +7,7 @@ import {
     ResolvedId
 } from 'rollup'
 import { TransformResult } from '../transformRequest'
+import { Plugin } from '../plugin'
 
 /**
  * 插件容器
@@ -64,7 +65,7 @@ export interface PluginContainer {
             scan?: boolean
             isEntry?: boolean
         }
-    ): Promise<Partial<ResolvedId> | null>
+    ): Promise<PartialResolvedId | null>
 
     /**
      * 转换模块内容
@@ -92,7 +93,7 @@ export interface PluginContainer {
 }
 
 export const createPluginContainer = (config: {
-    plugins: any[]
+    plugins: Plugin[]
 }): PluginContainer => {
     const plugins = config.plugins
 

@@ -17,6 +17,7 @@ export function cssPlugin(): Plugin {
 const cssStr = "${code.replace(/\n/g, "")}";
 const style = document.createElement("style");
 style.setAttribute("type", "text/css");
+style.setAttribute("data-vite-dev-id", "${id}");
 style.innerHTML = cssStr;
 document.head.appendChild(style);
 export default cssStr;
