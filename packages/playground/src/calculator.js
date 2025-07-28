@@ -44,4 +44,3 @@ function createCalculator() {
 // 使用 module.exports 导出
 module.exports = {  Calculator: Calculator, createCalculator: createCalculator};
 
-console.log('Calculator 模块已加载');

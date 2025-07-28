@@ -22,11 +22,12 @@ const APP = {
         }, 'click me'))
       ])
     }
-  }
+}
 // 通过 createAPP 标记挂载组件
 const app = createApp(APP)
 // 挂载位置
 app.mount('#app')
+console.log(`app 挂载成功`)
 
 console.log('🚀 测试 ESM 模块支持...');
 console.log(_.merge([1], [2, 3]));
@@ -49,7 +50,7 @@ console.log('\n🧮 计算器模块测试:');
 
 const calc = createCalculator();
 const result = calc.add(10).multiply(2).subtract(5).divide(3).getValue();
-console.log('链式计算 (10 + 10) * 2 - 5 / 3 =', result);
+console.log('链式计算 (10 * 2 - 5) / 3 =', result);
 
 // 测试 3: 使用构造函数
 const calc2 = new Calculator();

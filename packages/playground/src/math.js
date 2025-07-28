@@ -25,4 +25,3 @@ exports.divide = function(a, b) {
 exports.PI = 3.14159;
 exports.E = 2.71828;
 
-console.log('CommonJS math 模块已加载');
