@@ -1,10 +1,7 @@
 import {
-    InputOptions,
-    ModuleInfo,
     CustomPluginOptions,
     PartialResolvedId,
     SourceDescription,
-    SourceMap,
     LoadResult,
     PluginContext,
     ResolvedId
@@ -24,7 +21,7 @@ import { TransformResult } from '../transformRequest'
  *
  * 2. 构建阶段 (Build Phase)
  *    - buildStart() - 通用钩子，构建开始
- *    - resolvedId() - 通用钩子，解析模块ID
+ *    - resolveId() - 通用钩子，解析模块ID
  *    - load() - 通用钩子，加载模块内容
  *    - transform() - 通用钩子，转换模块内容
  *    - buildEnd() - 通用钩子，构建结束
@@ -67,7 +64,7 @@ export interface PluginContainer {
             scan?: boolean
             isEntry?: boolean
         }
-    ): Promise<PartialResolvedId | null>
+    ): Promise<Partial<ResolvedId> | null>
 
     /**
      * 转换模块内容
@@ -104,7 +101,7 @@ export const createPluginContainer = (config: {
         async resolve(id: string, importer?: string) {
             let out = await pluginContainer.resolveId(id, importer);
             if (typeof out === 'string') {
-                return {id: out};
+                return {id: out} as unknown as ResolvedId | null;;
             }
             return out as ResolvedId | null;
         }
@@ -117,7 +114,7 @@ export const createPluginContainer = (config: {
             const ctx = new Context()
             for (const plugin of plugins) {
                 if (plugin.resolveId) {
-                    const newId = await plugin.resolvedId.call(
+                    const newId = await plugin.resolveId.call(
                         ctx,
                         id,
                         importer
@@ -135,7 +132,7 @@ export const createPluginContainer = (config: {
             const ctx = new Context()
             for (const plugin of plugins) {
                 if (plugin.load) {
-                    const result = await plugin.load.call(ctx, id)
+                    const result = await plugin.load.call(ctx, id);
                     if (result) {
                         return result
                     }

@@ -3,6 +3,7 @@ import { OptimizeDepsOptions } from './types'
 import colors from 'picocolors'
 import { esbuildScanPlugin } from './scanPlugin'
 import { build } from 'esbuild'
+import fse from 'fs-extra'
 
 export async function optimizeDeps(config: OptimizeDepsOptions) {
     console.log('>>>optimizeDeps', config)
@@ -24,13 +25,14 @@ export async function optimizeDeps(config: OptimizeDepsOptions) {
             .join('\n')}\n\n`
     )
     // 3. 预构建依赖
+    // 使用更明确的配置来处理 CommonJS 和 ES 模块转换
     await build({
-        entryPoints: [entry],
+        entryPoints: [...deps],
+        write: true,
         bundle: true,
-        write: false,
+        format: "esm",
         splitting: true,
-        format: 'esm',
-        external: [...deps],
-        outdir: path.resolve(config.root, path.join('node_modules', '.mini-vite', 'deps'))
+        logLevel: 'error',
+        outdir: path.resolve(config.root, path.join('node_modules', '.mini-vite', 'deps')),
     })
 }

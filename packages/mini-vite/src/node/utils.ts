@@ -55,3 +55,13 @@ export function isImportRequest(url: string): boolean {
     // 如果 URL 中包含 import 查询参数，或者 URL 以 ? 或 & 结尾，则认为是 import 请求
     return importQueryRE.test(url) || trailingSeparatorRE.test(url);
 }
+
+export const CSS_LANGS_RE = /\.(css|less|sass|scss|styl|stylus|pcss|postcss|sss)(?:$|\?)/;
+
+/**
+ * 判断是否为 CSS 模块资源
+ */
+export function isCssRequest(url: string): boolean {
+    url = cleanUrl(url);
+    return CSS_LANGS_RE.test(url);
+}

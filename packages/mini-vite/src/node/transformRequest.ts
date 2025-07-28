@@ -13,6 +13,13 @@ export interface TransformResult {
     dynamicDeps?: string[];
 }
 
+/**
+ * 转换请求
+ * @param url 请求的 URL
+ * @param serverContext 服务器上下文
+ * @param options 转换选项
+ * @returns 转换结果
+ */
 export async function transformRequest(url: string, serverContext: ServerContext, options: TransformOptions = {}): Promise<TransformResult | null> {
     const {pluginContainer} = serverContext;
     url = cleanUrl(url);
@@ -20,12 +27,12 @@ export async function transformRequest(url: string, serverContext: ServerContext
     const resolveResult = await pluginContainer.resolveId(url);
     let transformResult: TransformResult | null = null;
     if (resolveResult?.id) {
-        const LoadResult = await pluginContainer.load(resolveResult.id);
-        let code = '';
-        if (typeof LoadResult === 'object' && LoadResult !== null) {
-            code = LoadResult.code;
+        const loadResult = await pluginContainer.load(resolveResult.id);
+        let code = loadResult;
+        if (typeof loadResult === 'object' && loadResult !== null) {
+            code = loadResult.code;
         }
-        if (code) {
+        if (typeof code === 'string') {
             transformResult = await pluginContainer.transform(code, resolveResult.id);
         }
     }

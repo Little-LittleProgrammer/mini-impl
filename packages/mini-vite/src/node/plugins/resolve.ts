@@ -16,8 +16,8 @@ export default function resolvePlugin(): Plugin {
     let serverContext: ServerContext;
     return {
         name: 'mini-vite:resolve',
-        configureServer(serverContext) {
-            serverContext = serverContext;
+        configureServer(serverCtx) {
+            serverContext = serverCtx;
         },
         async resolveId(id, importer) {
             // 判断是否为绝对路径
@@ -36,22 +36,22 @@ export default function resolvePlugin(): Plugin {
                  // 相对路径
                  if (!importer) throw new Error('`importer` should not be undefined');
                  const hasExtension = path.extname(id).length > 1;
-                 let resolvedId: string;
+                 let resolveId: string;
                  // 包含文件名后缀, 如 ./main.ts
                  if (hasExtension) {
-                    resolvedId = normalizePath(resolve.sync(id, { basedir: path.dirname(importer) }));
-                    if (await pathExists(resolvedId)) {
-                        return { id: resolvedId };
-                      }
+                    resolveId = normalizePath(resolve.sync(id, { basedir: path.dirname(importer) }));
+                    if (await pathExists(resolveId)) {
+                        return { id: resolveId };
+                    }
                  } else {
                     // 不包含文件名后缀，如 ./main
                     // 遍历来实现自动推断文件后缀名，如：./main -> ./main.ts
                     for (const ext of ['.ts', '.js', '.jsx', '.tsx', '.json']) {
                         try {
                             const withExtension = `${id}${ext}`;
-                            resolvedId = normalizePath(resolve.sync(withExtension, { basedir: path.dirname(importer) }));
-                            if (await pathExists(resolvedId)) {
-                                return { id: resolvedId };
+                            resolveId = normalizePath(resolve.sync(withExtension, { basedir: path.dirname(importer) }));
+                            if (await pathExists(resolveId)) {
+                                return { id: resolveId };
                             }
                         } catch (error) {
                             continue;

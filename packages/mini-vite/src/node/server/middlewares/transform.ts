@@ -1,6 +1,6 @@
 import { NextHandleFunction } from "connect";
 import { ServerContext } from "..";
-import { isImportRequest, isJsRequest } from "../../utils";
+import { isCssRequest, isImportRequest, isJsRequest } from "../../utils";
 import { transformRequest } from "../../transformRequest";
 
 /**
@@ -14,7 +14,7 @@ export function transformMiddleware(serverContext: ServerContext): NextHandleFun
         const url = req.url;
         console.debug("transformMiddleware: %s", url);
         // 如果是js模块资源，则执行以下逻辑
-        if (isJsRequest(url) || isImportRequest(url)) {
+        if (isJsRequest(url) || isImportRequest(url) || isCssRequest(url)) {
             // 编译转化
             let result = await transformRequest(url, serverContext, {
                 html: req.headers.accept?.includes('text/html'),

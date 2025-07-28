@@ -10,6 +10,11 @@ import { Plugin } from "../plugin";
 
 import { indexHtmlMiddleware } from './middlewares/indexHtml'
 import { transformMiddleware } from './middlewares/transform'
+import { esbuildTransformPlugin } from '../plugins/esbuild'
+import { importAnalysisPlugin } from '../plugins/importAnalysis'
+import resolvePlugin from '../plugins/resolve'
+import { cssPlugin } from '../plugins/css'
+import { cjsPlugin } from '../plugins/cjs'
 
 export interface ServerContext {
     root: string;
@@ -27,7 +32,7 @@ const { version } = JSON.parse(
 export async function startDevServer() {
     const app = connect()
     const startTime = Date.now();
-    const plugins: Plugin[] = []; // TODO: 后面补充
+    const plugins: Plugin[] = [resolvePlugin(), esbuildTransformPlugin(), importAnalysisPlugin(), cjsPlugin(), cssPlugin()];
     const pluginContainer = createPluginContainer({
         plugins
     });
@@ -38,8 +43,8 @@ export async function startDevServer() {
         plugins,
     }
     
-    app.use(indexHtmlMiddleware(serverContext));
-    app.use(transformMiddleware(serverContext));
+    app.use(indexHtmlMiddleware(serverContext)); // 处理 index.html 文件
+    app.use(transformMiddleware(serverContext)); // 处理其他文件
 
     for (const plugin of plugins) {
         if (plugin.configureServer) {
