@@ -8,14 +8,19 @@ console.log('🚀 测试 Vue 模块支持...');
 const APP = {
     setup() {
       const obj = reactive({
-        name: 'this is mini-vue'
+        name: 'this is mini-vue, count: ',
+        count: 0
       })
 
-      setTimeout(() => {
-        obj.name = 'this is mini-vue test reactive'
-      }, 2000);
-
-      return () => h('div', obj.name)
+      return () => h('div', [
+        h('span', obj.name),
+        h('span', obj.count),
+        h('div', h('button', {
+            onClick: () => {
+                obj.count++;
+            }
+        }, 'click me'))
+      ])
     }
   }
 // 通过 createAPP 标记挂载组件
