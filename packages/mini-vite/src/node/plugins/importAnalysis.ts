@@ -45,8 +45,8 @@ export function importAnalysisPlugin(): Plugin {
              for(let inportInfo of imports) {
                 /**
                  * 举例：import { createPinia } from 'pinia';
-                 * s: 0
-                 * e: 25
+                 * s: 30
+                 * e: 35
                  * n: 'pinia'
                  */
                 const {s: modStart, e: modEnd,n:modSource } = inportInfo;
