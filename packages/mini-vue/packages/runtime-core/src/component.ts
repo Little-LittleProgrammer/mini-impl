@@ -72,7 +72,7 @@ export function handleSetupResult(instance, setupResult) {
 export function finishComponentSetup(instance) {
 	const Component = instance.type
 
-	// 组件不存在 render 时，才需要重新赋值
+	// 组件不存在 render 时，才需要重新赋值, 如果存在 render ，render一定是一个 h 函数, 不可以喝 template共存
 	if (!instance.render) {
 		// 存在编辑器，并且组件中不包含 render 函数，同时包含 template 模板，则直接使用编辑器进行编辑，得到 render 函数
 		if (compile && !Component.render) {
