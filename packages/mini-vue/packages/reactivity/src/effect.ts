@@ -86,6 +86,9 @@ export function triggerEffects(dep: Dep) {
   // 3. 避免"脏读" - 防止普通effect读取到过时的计算属性值
   // 4. 减少重复计算 - 如果先执行普通effect，可能导致计算属性被多次触发
   // 5. 性能优化 - 符合Vue的响应式系统设计原则，确保依赖关系正确传播
+  // 例如： 一个 reactive 属性(A)更改，绑定了两个 dep(正常 effect(B)， computed effect(C)), computed effect 依赖于 reactive 属性(A)
+  // 如果先触发普通 effect，会导致 computed effect 被多次触发，导致性能问题, 会进入死循环
+  // 所以需要先触发 computed effect，再触发普通 effect
   for (const effect of effects) {
     if (effect.computed) {
       triggerEffect(effect)
