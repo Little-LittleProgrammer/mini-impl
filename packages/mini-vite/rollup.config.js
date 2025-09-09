@@ -19,7 +19,8 @@ const sharedNodeOptions = defineConfig({
         exports: 'named', // 输出文件使用命名导出
         format: 'esm', // 输出文件使用 ES 模块格式
         externalLiveBindings: false, // 保留外部依赖的实时绑定
-        freeze: false // 冻结输出文件中的对象
+        freeze: false, // 冻结输出文件中的对象
+        sourcemap: true // 生成sourcemap用于调试
     },
     // 用于处理 Rollup 构建过程中的警告
     onwarn(warning, warn) {

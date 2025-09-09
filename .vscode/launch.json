@@ -1,0 +1,25 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "type": "node",
+        "request": "launch",
+        "name": "调试 mini-vite",
+        "skipFiles": [
+          "<node_internals>/**"
+        ],
+        "program": "${workspaceFolder}/packages/mini-vite/bin/mini-vite.js",
+        "args": [],
+        "cwd": "${workspaceFolder}/packages/playground",
+        "outFiles": [
+          "${workspaceFolder}/packages/mini-vite/dist/**/*.js"
+        ],
+        "console": "integratedTerminal",
+        "sourceMaps": true,
+        "resolveSourceMapLocations": [
+          "${workspaceFolder}/packages/mini-vite/dist/**/*.js.map"
+        ],
+        "preLaunchTask": "构建 mini-vite"
+      }
+    ]
+  }
