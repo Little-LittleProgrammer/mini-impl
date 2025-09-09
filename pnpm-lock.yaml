@@ -36,6 +36,9 @@ catalogs:
     '@types/resolve':
       specifier: ^1.20.6
       version: 1.20.6
+    '@types/ws':
+      specifier: ^8.11.0
+      version: 8.18.1
     cac:
       specifier: ^6.7.14
       version: 6.7.14
@@ -201,6 +204,9 @@ importers:
       '@types/resolve':
         specifier: 'catalog:'
         version: 1.20.6
+      '@types/ws':
+        specifier: 'catalog:'
+        version: 8.18.1
       npm-run-all2:
         specifier: 'catalog:'
         version: 6.2.6
@@ -569,6 +575,9 @@ packages:
 
   '@types/resolve@1.20.6':
     resolution: {integrity: sha512-A4STmOXPhMUtHH+S6ymgE2GiBSMqf4oTvcQZMcHzokuTLVYzXTB8ttjcgxOVaAp2lGwEdzZ0J+cRbbeevQj1UQ==}
+
+  '@types/ws@8.18.1':
+    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
   '@typescript-eslint/eslint-plugin@8.18.2':
     resolution: {integrity: sha512-adig4SzPLjeQ0Tm+jvsozSGiCliI2ajeURDGHjZ2llnA+A67HihCQ+a3amtPhUakd1GlwHxSRvzOZktbEvhPPg==}
@@ -2129,6 +2138,10 @@ snapshots:
   '@types/resolve@1.20.2': {}
 
   '@types/resolve@1.20.6': {}
+
+  '@types/ws@8.18.1':
+    dependencies:
+      '@types/node': 20.2.5
 
   '@typescript-eslint/eslint-plugin@8.18.2(@typescript-eslint/parser@8.18.2(eslint@8.57.1)(typescript@5.7.3))(eslint@8.57.1)(typescript@5.7.3)':
     dependencies:

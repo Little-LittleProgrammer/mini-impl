@@ -1,6 +1,6 @@
 // import Vue from 'mini-vue'
 // import './style.css'
-// import * as  _ from 'lodash-es'
+import * as  _ from 'lodash-es'
 // import App from './App.vue'
 // import { createApp, reactive, h } from 'mini-vue'
 
@@ -30,7 +30,7 @@
 // console.log(`app 挂载成功`)
 
 // console.log('🚀 测试 ESM 模块支持...');
-// console.log(_.merge([1], [2, 3]));
+console.log(_.merge([1], [2, 3]));
 
 // console.log('🚀 测试 CommonJS 模块支持...');
 // 测试 1: ES 模块导入 CommonJS (exports.xxx)

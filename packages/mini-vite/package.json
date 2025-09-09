@@ -21,6 +21,7 @@
       "@types/debug": "catalog:",
       "@types/fs-extra": "catalog:",
       "@types/node": "catalog:",
+      "@types/ws": "catalog:",
       "@types/resolve": "catalog:",
       "npm-run-all2": "catalog:",
       "rimraf": "catalog:"
