@@ -9,6 +9,7 @@ import { isCssRequest, isJsRequest, normalizePath } from '../utils'
 export interface HmrContext {
   send(payload: HMRPayload): void
   close(): void
+  updateModuleGraph(importer: string, importees: string[]): void
 }
 
 export interface HMRPayload {
@@ -77,10 +78,65 @@ export function createHMRServer(
     }
   )
 
+  // 模块依赖图，追踪模块间的依赖关系
+  const moduleGraph = new Map<string, Set<string>>() // 模块 -> 其导入的模块们
+  const importerGraph = new Map<string, Set<string>>() // 模块 -> 导入它的模块们
+
+  // 更新模块图
+  function updateModuleGraph(importer: string, importees: string[]) {
+    // 清除旧的依赖关系
+    if (moduleGraph.has(importer)) {
+      for (const importee of moduleGraph.get(importer)!) {
+        const importers = importerGraph.get(importee)
+        if (importers) {
+          importers.delete(importer)
+          if (importers.size === 0) {
+            importerGraph.delete(importee)
+          }
+        }
+      }
+    }
+
+    // 设置新的依赖关系
+    moduleGraph.set(importer, new Set(importees))
+    for (const importee of importees) {
+      if (!importerGraph.has(importee)) {
+        importerGraph.set(importee, new Set())
+      }
+      importerGraph.get(importee)!.add(importer)
+    }
+  }
+
+  // 获取需要更新的边界模块
+  function getBoundaryModules(changedFile: string): string[] {
+    const boundaries: string[] = []
+    const visited = new Set<string>()
+    
+    function traverse(file: string) {
+      if (visited.has(file)) return
+      visited.add(file)
+      
+      const importers = importerGraph.get(file)
+      if (!importers || importers.size === 0) {
+        // 如果没有导入者，这个文件本身就是边界
+        boundaries.push(file)
+        return
+      }
+      
+      for (const importer of importers) {
+        traverse(importer)
+      }
+    }
+    
+    traverse(changedFile)
+    return boundaries
+  }
+
   // 文件变化处理
   watcher.on('change', async (filePath) => {
     const normalizedPath = normalizePath(filePath)
     const relativePath = path.relative(serverContext.root, normalizedPath)
+    const moduleUrl = relativePath[0] === '/' ? relativePath : `/${relativePath}`
     
     console.log(colors.cyan(`[HMR] 文件已更新: ${relativePath}`))
 
@@ -90,46 +146,69 @@ export function createHMRServer(
         // HTML文件变化 - 全量刷新
         send({
           type: 'full-reload',
+          path: relativePath
         } as HMRFullReloadPayload)
-      } else if (isJsRequest(filePath) || filePath.endsWith('.vue')) {
-        // JS/Vue文件变化
+      } else if (isJsRequest(filePath) || filePath.endsWith('.vue') || filePath.endsWith('.ts') || filePath.endsWith('.tsx') || filePath.endsWith('.jsx')) {
+        // JS/TS/Vue文件变化
         const timestamp = Date.now()
-        const updates: Update[] = [{
-          type: 'js-update',
-          path: `/${relativePath}`,
-          acceptedPath: `/${relativePath}`,
-          timestamp,
-        }]
         
-        send({
-          type: 'update',
-          updates,
-        } as HMRUpdatePayload)
+        // 获取受影响的边界模块
+        const boundaryModules = getBoundaryModules(moduleUrl)
+        
+        if (boundaryModules.length === 0) {
+          // 如果找不到边界模块，进行全量刷新
+          console.log(colors.yellow(`[HMR] 找不到 ${relativePath} 的HMR边界，执行全量刷新`))
+          send({
+            type: 'full-reload',
+            path: relativePath
+          } as HMRFullReloadPayload)
+        } else {
+          // 发送模块更新
+          const updates: Update[] = [{
+            type: 'js-update',
+            path: moduleUrl,
+            acceptedPath: moduleUrl,
+            timestamp,
+          }]
+          
+          console.log(colors.green(`[HMR] 发送模块更新: ${relativePath}`))
+          send({
+            type: 'update',
+            updates,
+          } as HMRUpdatePayload)
+        }
       } else if (isCssRequest(filePath)) {
-        // CSS文件变化
+        // CSS文件变化 - 总是可以热更新
         const timestamp = Date.now()
         const updates: Update[] = [{
           type: 'css-update',
-          path: `/${relativePath}`,
-          acceptedPath: `/${relativePath}`,
+          path: moduleUrl,
+          acceptedPath: moduleUrl,
           timestamp,
         }]
         
+        console.log(colors.green(`[HMR] CSS热更新: ${relativePath}`))
         send({
           type: 'update',
           updates,
         } as HMRUpdatePayload)
       } else {
         // 其他文件变化 - 全量刷新
+        console.log(colors.yellow(`[HMR] 未知文件类型 ${relativePath}，执行全量刷新`))
         send({
           type: 'full-reload',
+          path: relativePath
         } as HMRFullReloadPayload)
       }
     } catch (error) {
       console.error(colors.red('[HMR] 处理文件更新错误:'), error)
       send({
-        type: 'full-reload',
-      } as HMRFullReloadPayload)
+        type: 'error',
+        err: {
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined
+        }
+      })
     }
   })
 
@@ -173,5 +252,6 @@ export function createHMRServer(
   return {
     send,
     close,
+    updateModuleGraph,
   }
 }
