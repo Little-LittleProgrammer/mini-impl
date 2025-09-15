@@ -32,6 +32,10 @@ interface HotModule {
   dispose(callback: () => void): void
   decline(): void
   invalidate(): void
+  // 添加更多HMR API方法
+  on(event: string, cb: (...args: any[]) => void): void
+  off(event: string, cb?: (...args: any[]) => void): void
+  send(data: any): void
 }
 
 // 创建HMR API
@@ -47,6 +51,9 @@ function createHotContext(ownerPath: string): HotModule {
   }
 
   const mod = moduleCache[ownerPath]
+
+  // 事件监听器映射
+  const eventListeners = new Map<string, Set<(...args: any[]) => void>>()
 
   const hotModule: HotModule = {
     data: mod.module?.hot?.data || {},
@@ -84,6 +91,36 @@ function createHotContext(ownerPath: string): HotModule {
     // 使模块失效，触发完整重新加载
     invalidate() {
       location.reload()
+    },
+
+    // 添加事件监听器
+    on(event: string, cb: (...args: any[]) => void) {
+      if (!eventListeners.has(event)) {
+        eventListeners.set(event, new Set())
+      }
+      eventListeners.get(event)!.add(cb)
+    },
+
+    // 移除事件监听器
+    off(event: string, cb?: (...args: any[]) => void) {
+      if (!eventListeners.has(event)) return
+      if (cb) {
+        eventListeners.get(event)!.delete(cb)
+      } else {
+        eventListeners.delete(event)
+      }
+    },
+
+    // 发送自定义消息到服务器
+    send(data: any) {
+      socket.send(JSON.stringify({
+        type: 'custom',
+        event: 'message',
+        data: {
+          ownerPath,
+          ...data
+        }
+      }))
     }
   }
 
@@ -297,24 +334,47 @@ function updateCss(update: any) {
         const newLink = link.cloneNode() as HTMLLinkElement
         newLink.href = newUrl
         newLink.onload = () => {
-          link.remove()
+          try {
+            link.remove()
+            console.log(`[mini-vite] css link updated: ${path}`)
+          } catch (e) {
+            console.error(`[mini-vite] failed to remove old css link: ${path}`, e)
+          }
         }
-        newLink.onerror = () => {
-          console.error(`[mini-vite] failed to load updated css: ${newUrl}`)
-          link.remove()
+        newLink.onerror = (err) => {
+          console.error(`[mini-vite] failed to load updated css: ${newUrl}`, err)
+          try {
+            link.remove()
+          } catch (e) {
+            console.error(`[mini-vite] failed to remove old css link on error: ${path}`, e)
+          }
         }
-        link.after(newLink)
+        try {
+          link.after(newLink)
+        } catch (e) {
+          console.error(`[mini-vite] failed to insert new css link: ${path}`, e)
+        }
       } else if (link.tagName === 'STYLE') {
         // 对于内联样式，需要重新获取内容
         fetch(newUrl)
-          .then(res => res.text())
+          .then(res => {
+            if (!res.ok) {
+              throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+            }
+            return res.text()
+          })
           .then(css => {
             // 更新样式内容
-            const newStyle = document.createElement('style')
-            newStyle.setAttribute('type', 'text/css')
-            newStyle.setAttribute('data-vite-dev-id', path)
-            newStyle.innerHTML = css
-            link.parentNode?.replaceChild(newStyle, link)
+            try {
+              const newStyle = document.createElement('style')
+              newStyle.setAttribute('type', 'text/css')
+              newStyle.setAttribute('data-vite-dev-id', path)
+              newStyle.innerHTML = css
+              link.parentNode?.replaceChild(newStyle, link)
+              console.log(`[mini-vite] inline css updated: ${path}`)
+            } catch (e) {
+              console.error(`[mini-vite] failed to update inline css: ${path}`, e)
+            }
           })
           .catch(err => {
             console.error(`[mini-vite] failed to fetch updated css: ${newUrl}`, err)
@@ -324,13 +384,23 @@ function updateCss(update: any) {
   } else {
     // 如果没有找到对应的标签，尝试重新加载CSS模块
     fetch(newUrl)
-      .then(res => res.text())
+      .then(res => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+        }
+        return res.text()
+      })
       .then(css => {
-        const style = document.createElement('style')
-        style.setAttribute('type', 'text/css')
-        style.setAttribute('data-vite-dev-id', path)
-        style.innerHTML = css
-        document.head.appendChild(style)
+        try {
+          const style = document.createElement('style')
+          style.setAttribute('type', 'text/css')
+          style.setAttribute('data-vite-dev-id', path)
+          style.innerHTML = css
+          document.head.appendChild(style)
+          console.log(`[mini-vite] new css style added: ${path}`)
+        } catch (e) {
+          console.error(`[mini-vite] failed to add new css style: ${path}`, e)
+        }
       })
       .catch(err => {
         console.error(`[mini-vite] failed to fetch css: ${newUrl}`, err)

@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户反馈与问题诊断工具</title>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .container {
+            max-width: 1200px;
+            width: 100%;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            margin-top: 80px;
+        }
+        
+        header {
+            background: #4a6bdf;
+            color: white;
+            padding: 25px;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        .description {
+            font-size: 16px;
+            opacity: 0.9;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        
+        .content {
+            padding: 30px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        
+        .demo-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 10px;
+            border: 1px solid #eaecef;
+        }
+        
+        .demo-title {
+            font-size: 20px;
+            color: #4a6bdf;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .demo-title svg {
+            margin-right: 10px;
+        }
+        
+        .feedback-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: 14px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+            transition: all 0.3s ease;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+        }
+        
+        .feedback-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 107, 107, 0.5);
+        }
+        
+        .feedback-btn svg {
+            margin-right: 8px;
+        }
+        
+        .feedback-modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            width: 90%;
+            max-width: 600px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            z-index: 1001;
+            overflow: hidden;
+        }
+        
+        .modal-header {
+            background: #4a6bdf;
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-header h2 {
+            font-size: 22px;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+        }
+        
+        .modal-body {
+            padding: 25px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        textarea, input[type="email"] {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border 0.3s;
+        }
+        
+        textarea:focus, input[type="email"]:focus {
+            border-color: #4a6bdf;
+            outline: none;
+        }
+        
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+        
+        .screenshot-container {
+            margin: 20px 0;
+            text-align: center;
+            border: 2px dashed #eaecef;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        
+        .screenshot-container img {
+            max-width: 100%;
+            border-radius: 6px;
+            display: none;
+        }
+        
+        .submit-btn {
+            background: #4a6bdf;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 14px 28px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.3s;
+        }
+        
+        .submit-btn:hover {
+            background: #3a5bc7;
+        }
+        
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 1000;
+        }
+        
+        .info-item {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .info-item:last-child {
+            border-bottom: none;
+        }
+        
+        .info-title {
+            font-weight: 600;
+            color: #4a6bdf;
+            margin-bottom: 5px;
+        }
+        
+        .info-content {
+            color: #555;
+            font-family: monospace;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            font-size: 14px;
+        }
+        
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+            
+            .feedback-modal {
+                width: 95%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Web用户反馈与问题诊断工具</h1>
+            <p class="description">此演示展示如何通过JavaScript自动截图并收集控制台信息，帮助开发团队快速定位和解决用户遇到的问题。</p>
+        </header>
+        
+        <div class="content">
+            <div class="demo-section">
+                <h2 class="demo-title">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    功能说明
+                </h2>
+                <p>当用户遇到问题时，可以点击页面右下角的反馈按钮，系统将：</p>
+                <ul style="margin: 15px 0 15px 20px;">
+                    <li>自动截取当前页面截图</li>
+                    <li>收集控制台输出的日志和错误信息</li>
+                    <li>记录浏览器类型和版本</li>
+                    <li>记录页面URL和窗口大小</li>
+                </ul>
+                <p>用户可以在弹出窗口中添加问题描述和联系方式，所有信息将一并提交给开发团队。</p>
+            </div>
+            
+            <div class="demo-section">
+                <h2 class="demo-title">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    技术实现
+                </h2>
+                <div class="info-item">
+                    <div class="info-title">截图功能</div>
+                    <div class="info-content">使用html2canvas库将DOM元素转换为canvas，然后生成图片</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-title">控制台信息收集</div>
+                    <div class="info-content">重写console方法，将日志信息存储到数组中</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-title">环境信息</div>
+                    <div class="info-content">通过navigator和screen对象获取浏览器和设备信息</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <button class="feedback-btn" id="feedbackButton">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+        报告问题
+    </button>
+    
+    <div class="overlay" id="overlay"></div>
+    
+    <div class="feedback-modal" id="feedbackModal">
+        <div class="modal-header">
+            <h2>报告问题</h2>
+            <button class="close-btn" id="closeModal">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label for="email">邮箱地址（可选）</label>
+                <input type="email" id="email" placeholder="请输入您的邮箱以便我们回复您">
+            </div>
+            
+            <div class="form-group">
+                <label for="description">问题描述</label>
+                <textarea id="description" placeholder="请详细描述您遇到的问题..."></textarea>
+            </div>
+            
+            <div class="screenshot-container">
+                <p>页面截图：</p>
+                <img id="screenshot" alt="页面截图">
+            </div>
+            
+            <button class="submit-btn" id="submitBtn">提交反馈</button>
+        </div>
+    </div>
+
+    <script>
+        // 存储控制台日志
+        const consoleLogs = [];
+        const originalConsoleLog = console.log;
+        const originalConsoleError = console.error;
+        const originalConsoleWarn = console.warn;
+        
+        // 重写console方法以捕获日志
+        console.log = function() {
+            consoleLogs.push({ type: 'log', arguments: Array.from(arguments) });
+            originalConsoleLog.apply(console, arguments);
+        };
+        
+        console.error = function() {
+            consoleLogs.push({ type: 'error', arguments: Array.from(arguments) });
+            originalConsoleError.apply(console, arguments);
+        };
+        
+        console.warn = function() {
+            consoleLogs.push({ type: 'warn', arguments: Array.from(arguments) });
+            originalConsoleWarn.apply(console, arguments);
+        };
+        
+        // 模拟一些控制台输出
+        console.log('页面加载完成');
+        console.warn('这是一个警告信息示例');
+        console.error('这是一个错误信息示例');
+        
+        // 获取DOM元素
+        const feedbackButton = document.getElementById('feedbackButton');
+        const overlay = document.getElementById('overlay');
+        const feedbackModal = document.getElementById('feedbackModal');
+        const closeModal = document.getElementById('closeModal');
+        const screenshot = document.getElementById('screenshot');
+        const submitBtn = document.getElementById('submitBtn');
+        
+        // 打开模态框
+        feedbackButton.addEventListener('click', function() {
+            overlay.style.display = 'block';
+            feedbackModal.style.display = 'block';
+            
+            // 截取页面截图
+            html2canvas(document.body).then(canvas => {
+                screenshot.src = canvas.toDataURL();
+                screenshot.style.display = 'block';
+            });
+        });
+        
+        // 关闭模态框
+        closeModal.addEventListener('click', function() {
+            overlay.style.display = 'none';
+            feedbackModal.style.display = 'none';
+        });
+        
+        overlay.addEventListener('click', function() {
+            overlay.style.display = 'none';
+            feedbackModal.style.display = 'none';
+        });
+        
+        // 提交反馈
+        submitBtn.addEventListener('click', function() {
+            const email = document.getElementById('email').value;
+            const description = document.getElementById('description').value;
+            
+            // 收集环境信息
+            const envInfo = {
+                userAgent: navigator.userAgent,
+                viewport: `${window.innerWidth} x ${window.innerHeight}`,
+                screen: `${screen.width} x ${screen.height}`,
+                url: window.location.href,
+                language: navigator.language,
+                cookiesEnabled: navigator.cookieEnabled,
+            };
+            
+            // 准备要提交的数据
+            const feedbackData = {
+                email,
+                description,
+                screenshot: screenshot.src,
+                consoleLogs,
+                envInfo,
+                timestamp: new Date().toISOString()
+            };
+            
+            // 在实际应用中，这里应该发送到服务器
+            console.log('反馈数据:', feedbackData);
+            
+            // 显示成功消息
+            alert('感谢您的反馈！问题报告已提交。');
+            
+            // 关闭模态框
+            overlay.style.display = 'none';
+            feedbackModal.style.display = 'none';
+        });
+    </script>
+</body>
+</html>

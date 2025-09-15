@@ -79,17 +79,20 @@ export function createHMRServer(
   )
 
   // 模块依赖图，追踪模块间的依赖关系
+  // 用于确定哪些模块需要重新加载
   const moduleGraph = new Map<string, Set<string>>() // 模块 -> 其导入的模块们
   const importerGraph = new Map<string, Set<string>>() // 模块 -> 导入它的模块们
 
   // 更新模块图
   function updateModuleGraph(importer: string, importees: string[]) {
+    const normalizedImporter = normalizePath(importer);
+    
     // 清除旧的依赖关系
-    if (moduleGraph.has(importer)) {
-      for (const importee of moduleGraph.get(importer)!) {
+    if (moduleGraph.has(normalizedImporter)) {
+      for (const importee of moduleGraph.get(normalizedImporter)!) {
         const importers = importerGraph.get(importee)
         if (importers) {
-          importers.delete(importer)
+          importers.delete(normalizedImporter)
           if (importers.size === 0) {
             importerGraph.delete(importee)
           }
@@ -97,13 +100,21 @@ export function createHMRServer(
       }
     }
 
+    // 规范化所有依赖项路径
+    const normalizedImportees = importees.map(importee => normalizePath(importee));
+    
+    // 过滤掉无效的依赖项（如空字符串或自身引用）
+    const validImportees = normalizedImportees.filter(importee => 
+      importee && importee !== normalizedImporter
+    );
+
     // 设置新的依赖关系
-    moduleGraph.set(importer, new Set(importees))
-    for (const importee of importees) {
+    moduleGraph.set(normalizedImporter, new Set(validImportees))
+    for (const importee of validImportees) {
       if (!importerGraph.has(importee)) {
         importerGraph.set(importee, new Set())
       }
-      importerGraph.get(importee)!.add(importer)
+      importerGraph.get(importee)!.add(normalizedImporter)
     }
   }
 
@@ -111,36 +122,78 @@ export function createHMRServer(
   function getBoundaryModules(changedFile: string): string[] {
     const boundaries: string[] = []
     const visited = new Set<string>()
+    const visiting = new Set<string>() // 用于检测循环依赖
     
-    function traverse(file: string) {
-      if (visited.has(file)) return
-      visited.add(file)
+    function traverse(file: string): boolean {
+      // 如果已经访问过，说明是边界模块
+      if (visited.has(file)) {
+        return boundaries.includes(file)
+      }
+      
+      // 检测循环依赖
+      if (visiting.has(file)) {
+        // 循环依赖情况下，将当前文件作为边界
+        if (!boundaries.includes(file)) {
+          boundaries.push(file)
+        }
+        return true
+      }
+      
+      visiting.add(file)
       
       const importers = importerGraph.get(file)
       if (!importers || importers.size === 0) {
         // 如果没有导入者，这个文件本身就是边界
         boundaries.push(file)
-        return
+        visiting.delete(file)
+        visited.add(file)
+        return true
       }
       
+      let hasBoundary = false
       for (const importer of importers) {
-        traverse(importer)
+        if (traverse(importer)) {
+          hasBoundary = true
+        }
       }
+      
+      // 如果所有导入者都不是边界，则当前文件是边界
+      if (!hasBoundary) {
+        boundaries.push(file)
+      }
+      
+      visiting.delete(file)
+      visited.add(file)
+      return true
     }
     
-    traverse(changedFile)
+    const normalizedChangedFile = normalizePath(changedFile)
+    traverse(normalizedChangedFile)
     return boundaries
   }
 
   // 文件变化处理
   watcher.on('change', async (filePath) => {
-    const normalizedPath = normalizePath(filePath)
-    const relativePath = path.relative(serverContext.root, normalizedPath)
-    const moduleUrl = relativePath[0] === '/' ? relativePath : `/${relativePath}`
-    
-    console.log(colors.cyan(`[HMR] 文件已更新: ${relativePath}`))
-
     try {
+      // 验证文件路径
+      if (!filePath || typeof filePath !== 'string') {
+        console.warn(colors.yellow('[HMR] 无效的文件路径:', filePath))
+        return
+      }
+
+      const normalizedPath = normalizePath(filePath)
+      const relativePath = path.relative(serverContext.root, normalizedPath)
+      
+      // 如果相对路径为空或无效，跳过处理
+      if (!relativePath) {
+        console.warn(colors.yellow('[HMR] 无法计算相对路径:', filePath))
+        return
+      }
+      
+      const moduleUrl = relativePath[0] === '/' ? relativePath : `/${relativePath}`
+      
+      console.log(colors.cyan(`[HMR] 文件已更新: ${relativePath}`))
+
       // 处理不同类型的文件更新
       if (filePath.endsWith('.html')) {
         // HTML文件变化 - 全量刷新
@@ -213,21 +266,41 @@ export function createHMRServer(
   })
 
   watcher.on('add', (filePath) => {
-    const relativePath = path.relative(serverContext.root, filePath)
-    console.log(colors.green(`[HMR] 文件已添加: ${relativePath}`))
-    // 新增文件触发全量刷新
-    send({
-      type: 'full-reload',
-    } as HMRFullReloadPayload)
+    try {
+      // 验证文件路径
+      if (!filePath || typeof filePath !== 'string') {
+        console.warn('[HMR] 无效的文件路径: ' + filePath)
+        return
+      }
+
+      const relativePath = path.relative(serverContext.root, filePath)
+      console.log(colors.green(`[HMR] 文件已添加: ${relativePath}`))
+      // 新增文件触发全量刷新
+      send({
+        type: 'full-reload',
+      } as HMRFullReloadPayload)
+    } catch (error) {
+      console.error(colors.red('[HMR] 处理文件添加错误:'), error)
+    }
   })
 
   watcher.on('unlink', (filePath) => {
-    const relativePath = path.relative(serverContext.root, filePath)
-    console.log(colors.red(`[HMR] 文件已删除: ${relativePath}`))
-    // 删除文件触发全量刷新
-    send({
-      type: 'full-reload',
-    } as HMRFullReloadPayload)
+    try {
+      // 验证文件路径
+      if (!filePath || typeof filePath !== 'string') {
+        console.warn('[HMR] 无效的文件路径: ' + filePath)
+        return
+      }
+
+      const relativePath = path.relative(serverContext.root, filePath)
+      console.log(colors.red(`[HMR] 文件已删除: ${relativePath}`))
+      // 删除文件触发全量刷新
+      send({
+        type: 'full-reload',
+      } as HMRFullReloadPayload)
+    } catch (error) {
+      console.error(colors.red('[HMR] 处理文件删除错误:'), error)
+    }
   })
 
   watcher.on('error', (error) => {
@@ -235,18 +308,49 @@ export function createHMRServer(
   })
 
   function send(payload: HMRPayload) {
-    const stringified = JSON.stringify(payload)
-    clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(stringified)
-      }
-    })
+    try {
+      const stringified = JSON.stringify(payload)
+      clients.forEach((client) => {
+        try {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(stringified)
+          }
+        } catch (error) {
+          console.error(colors.red('[HMR] 发送消息到客户端时出错:'), error)
+          // 如果发送失败，移除客户端
+          clients.delete(client)
+        }
+      })
+    } catch (error) {
+      console.error(colors.red('[HMR] 序列化消息时出错:'), error)
+    }
   }
 
   function close() {
-    clients.forEach((client) => client.close())
-    watcher.close()
-    wss.close()
+    try {
+      clients.forEach((client) => {
+        try {
+          client.close()
+        } catch (error) {
+          console.error(colors.red('[HMR] 关闭客户端连接时出错:'), error)
+        }
+      })
+      clients.clear()
+    } catch (error) {
+      console.error(colors.red('[HMR] 关闭客户端连接时出错:'), error)
+    }
+    
+    try {
+      watcher.close()
+    } catch (error) {
+      console.error(colors.red('[HMR] 关闭文件监听器时出错:'), error)
+    }
+    
+    try {
+      wss.close()
+    } catch (error) {
+      console.error(colors.red('[HMR] 关闭WebSocket服务器时出错:'), error)
+    }
   }
 
   return {
