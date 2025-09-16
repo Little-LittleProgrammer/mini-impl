@@ -1,43 +1,47 @@
-// import Vue from 'mini-vue'
-// import './style.css'
-// import * as  _ from 'lodash-es'
-// import App from './App.vue'
-// import { createApp, reactive, h } from 'mini-vue'
+import './style.css'
+import { getCount, increment, decrement } from './counter.js'
 
-// console.log('🚀 测试 Vue 模块支持...');
-// const APP = {
-//     setup() {
-//       const obj = reactive({
-//         name: 'this is mini-vue, count: ',
-//         count: 0
-//       })
+console.log('🚀 Mini-Vite HMR 测试...')
 
-//       return () => h('div', [
-//         h('span', obj.name),
-//         h('span', obj.count),
-//         h('div', h('button', {
-//             onClick: () => {
-//                 obj.count++;
-//             }
-//         }, 'click me'))
-//       ])
-//     }
-// }
-// // 通过 createAPP 标记挂载组件
-// const app = createApp(APP)
-// // 挂载位置
-// app.mount('#app')
-// console.log(`app 挂载成功`)
+// 创建一个简单的计数器来测试HMR
+const counter = document.createElement('div')
+counter.id = 'counter'
+counter.innerHTML = `
+  <h2>HMR 测试</h2>
+  <p>Count: <span id="count">${getCount()}</span></p>
+  <button id="increment">+</button>
+  <button id="decrement">-</button>
+`
 
-// console.log('🚀 测试 ESM 模块支持...');
-// console.log(_.merge([1], [2, 3]));
+document.body.appendChild(counter)
 
-// console.log('🚀 测试 CommonJS 模块支持...');
-// 测试 1: ES 模块导入 CommonJS (exports.xxx)
-// import * as math from './math.js';
-// console.log('📊 数学模块测试:');
-// console.log('Addition: 5 + 3 =', math.add(5, 3));
-// console.log('Subtraction: 5 - 3 =', math.subtract(5, 3));
-// console.log('Multiplication: 5 * 3 =', math.multiply(5, 3));
-// console.log('Division: 6 / 3 =', math.divide(6, 3));
-// console.log('Constants - PI:', math.PI, 'E:', math.E);
+const countEl = document.getElementById('count')
+const incrementBtn = document.getElementById('increment')
+const decrementBtn = document.getElementById('decrement')
+
+incrementBtn.addEventListener('click', () => {
+  const newCount = increment()
+  countEl.textContent = newCount.toString()
+  console.log('Count incremented:', newCount)
+})
+
+decrementBtn.addEventListener('click', () => {
+  const newCount = decrement()
+  countEl.textContent = newCount.toString()
+  console.log('Count decremented:', newCount)
+})
+
+// HMR 测试
+if (import.meta.hot) {
+  console.log('HMR is enabled')
+  
+  // 接受自身更新
+  import.meta.hot.accept((newModule) => {
+    console.log('Module updated')
+  })
+  
+  // 注册清理回调
+  import.meta.hot.dispose(() => {
+    console.log('Module disposed')
+  })
+}

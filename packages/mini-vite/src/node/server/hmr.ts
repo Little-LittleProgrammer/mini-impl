@@ -177,54 +177,51 @@ export function createHMRServer(
     try {
       // 验证文件路径
       if (!filePath || typeof filePath !== 'string') {
-        console.warn(colors.yellow('[HMR] 无效的文件路径:', filePath))
+        console.warn(colors.yellow('[HMR] 无效的文件路径:'), filePath)
         return
       }
 
       const normalizedPath = normalizePath(filePath)
-      const relativePath = path.relative(serverContext.root, normalizedPath)
       
       // 如果相对路径为空或无效，跳过处理
-      if (!relativePath) {
-        console.warn(colors.yellow('[HMR] 无法计算相对路径:', filePath))
+      if (!normalizedPath) {
+        console.warn(colors.yellow('[HMR] 无法计算相对路径:'), normalizedPath)
         return
       }
       
-      const moduleUrl = relativePath[0] === '/' ? relativePath : `/${relativePath}`
-      
-      console.log(colors.cyan(`[HMR] 文件已更新: ${relativePath}`))
+      console.log(colors.cyan(`[HMR] 文件已更新: ${normalizedPath}`))
 
       // 处理不同类型的文件更新
       if (filePath.endsWith('.html')) {
         // HTML文件变化 - 全量刷新
         send({
           type: 'full-reload',
-          path: relativePath
+          path: normalizedPath
         } as HMRFullReloadPayload)
       } else if (isJsRequest(filePath) || filePath.endsWith('.vue') || filePath.endsWith('.ts') || filePath.endsWith('.tsx') || filePath.endsWith('.jsx')) {
         // JS/TS/Vue文件变化
         const timestamp = Date.now()
         
         // 获取受影响的边界模块
-        const boundaryModules = getBoundaryModules(moduleUrl)
+        const boundaryModules = getBoundaryModules(normalizedPath)
         
         if (boundaryModules.length === 0) {
           // 如果找不到边界模块，进行全量刷新
-          console.log(colors.yellow(`[HMR] 找不到 ${relativePath} 的HMR边界，执行全量刷新`))
+          console.log(colors.yellow(`[HMR] 找不到 ${normalizedPath} 的HMR边界，执行全量刷新`))
           send({
             type: 'full-reload',
-            path: relativePath
+            path: normalizedPath
           } as HMRFullReloadPayload)
         } else {
           // 发送模块更新
           const updates: Update[] = [{
             type: 'js-update',
-            path: moduleUrl,
-            acceptedPath: moduleUrl,
+            path: normalizedPath,
+            acceptedPath: normalizedPath,
             timestamp,
           }]
           
-          console.log(colors.green(`[HMR] 发送模块更新: ${relativePath}`))
+          console.log(colors.green(`[HMR] 发送模块更新: ${normalizedPath}`))
           send({
             type: 'update',
             updates,
@@ -235,22 +232,22 @@ export function createHMRServer(
         const timestamp = Date.now()
         const updates: Update[] = [{
           type: 'css-update',
-          path: moduleUrl,
-          acceptedPath: moduleUrl,
+          path: normalizedPath,
+          acceptedPath: normalizedPath,
           timestamp,
         }]
         
-        console.log(colors.green(`[HMR] CSS热更新: ${relativePath}`))
+        console.log(colors.green(`[HMR] CSS热更新: ${normalizedPath}`))
         send({
           type: 'update',
           updates,
         } as HMRUpdatePayload)
       } else {
         // 其他文件变化 - 全量刷新
-        console.log(colors.yellow(`[HMR] 未知文件类型 ${relativePath}，执行全量刷新`))
+        console.log(colors.yellow(`[HMR] 未知文件类型 ${normalizedPath}，执行全量刷新`))
         send({
           type: 'full-reload',
-          path: relativePath
+          path: normalizedPath
         } as HMRFullReloadPayload)
       }
     } catch (error) {
@@ -273,8 +270,8 @@ export function createHMRServer(
         return
       }
 
-      const relativePath = path.relative(serverContext.root, filePath)
-      console.log(colors.green(`[HMR] 文件已添加: ${relativePath}`))
+      const normalizedPath = normalizePath(filePath)
+      console.log(colors.green(`[HMR] 文件已添加: ${normalizedPath}`))
       // 新增文件触发全量刷新
       send({
         type: 'full-reload',
@@ -292,8 +289,8 @@ export function createHMRServer(
         return
       }
 
-      const relativePath = path.relative(serverContext.root, filePath)
-      console.log(colors.red(`[HMR] 文件已删除: ${relativePath}`))
+        const normalizedPath = normalizePath(filePath)
+      console.log(colors.red(`[HMR] 文件已删除: ${normalizedPath}`))
       // 删除文件触发全量刷新
       send({
         type: 'full-reload',
