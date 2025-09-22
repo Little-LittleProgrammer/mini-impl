@@ -1,90 +1,130 @@
 import { Plugin } from "../plugin";
-import { 
-    isESMModule,
-    isJsRequest, 
-    transformExportsAssignments, 
-    transformModuleExports,
-    hasSpecificSyntax
-} from "../utils";
-
+import { cleanUrl } from "../utils";
+import { transform, TransformOptions } from "esbuild";
+import path from "path";
 
 /**
- * CommonJS 兼容插件
- * 处理 CommonJS 模块与 ES 模块之间的互操作性
+ * CommonJS 兼容插件 (基于 esbuild)
+ * 使用 esbuild 将 CommonJS 模块转换为 ES 模块
  * 1. 自动转换 module.exports 和 exports.xx 为 ES 模块导出
- * 2. 提供 require() 函数的浏览器兼容实现
- * 3. 支持混合模块格式
+ * 2. 处理 require() 调用，转换为 import 语句
+ * 3. 提供更好的性能和兼容性
  */
 export function commonjsPlugin(): Plugin {
     return {
         name: "mini-vite:commonjs",
         async transform(code, id) {
-            // 只处理 JS 请求
-            if (!isJsRequest(id)) return null;
+            // 只处理 JavaScript 文件（.js, .cjs, .mjs），不处理 TypeScript 和 JSX
+            const jsFileReg = /\.(js|cjs)$/;
+            if (!jsFileReg.test(id) && !jsFileReg.test(cleanUrl(id))) {
+                return null;
+            }
 
-            // 检查是否为 ESM 模块，如果是则跳过 CommonJS 转换
+            // 检查是否已经是 ESM 模块（包含 import/export 语句）
             if (isESMModule(code)) {
                 return null;
             }
 
-            // 检测和转换 CommonJS 模块
-            let transformedCode = code;
+            // 检查是否包含 CommonJS 语法
+            if (!hasCommonJSSyntax(code)) {
+                return null;
+            }
 
-            // 1. 转换 exports.xxx = value 为 ES 模块导出
-            const exportsResult = transformExportsAssignments(code, transformedCode);
-            transformedCode = exportsResult.code;
+            try {
+                // 使用 esbuild 将 CommonJS 转换为 ESM
+                const result = await transform(code, {
+                    loader: getLoader(id),
+                    format: 'esm', // 输出 ESM 格式
+                    platform: 'browser', // 浏览器平台
+                    target: 'esnext',
+                    sourcemap: true,
+                    // 启用 CommonJS 转换
+                    define: {
+                        'process.env.NODE_ENV': '"development"',
+                        'global': 'globalThis'
+                    }
+                });
 
-            // 2. 转换 module.exports = value 为默认导出
-            transformedCode = transformModuleExports(code, transformedCode);
+                return {
+                    code: result.code,
+                    map: result.map
+                };
+            } catch (error) {
+                // 如果 esbuild 转换失败，回退到原始代码
+                console.warn(`Failed to transform CommonJS module ${id}:`, error);
+                return null;
+            }
+        }
+    };
+}
 
-            // 3. 为 require() 提供浏览器兼容实现
-            if (hasSpecificSyntax(code, /(?:^|[^\w$])require\s*\(/m)) {
-                const requirePolyfill = `
-// CommonJS require() 浏览器兼容实现
-function __createRequire() {
-    const moduleCache = new Map();
+/**
+ * 检查是否已经是 ESM 模块
+ */
+function isESMModule(code: string): boolean {
+    const cleaned = cleanCode(code);
     
-    return function require(id) {
-        // 检查缓存
-        if (moduleCache.has(id)) {
-            return moduleCache.get(id);
-        }
-        
-        // 对于相对路径，需要动态导入
-        if (id.startsWith('./') || id.startsWith('../')) {
-            // 这里应该通过动态导入来解决
-            console.warn('Dynamic require for relative paths is not fully supported in browser environment');
-            return {};
-        }
-        
-        // 对于第三方包，返回空对象作为占位符
-        console.warn(\`require('\${id}') is not fully supported in browser environment. Consider using ES modules instead.\`);
-        return {};
-    };
+    // 检测 ES 模块的特征
+    const hasImport = /(?:^|[^\w$])import\s+/m.test(cleaned);
+    const hasExport = /(?:^|[^\w$])export\s+/m.test(cleaned);
+    
+    return hasImport || hasExport;
 }
 
-const require = __createRequire();
-`;
-                transformedCode = requirePolyfill + transformedCode;
-            }
+/**
+ * 检查是否包含 CommonJS 语法
+ */
+function hasCommonJSSyntax(code: string): boolean {
+    const cleaned = cleanCode(code);
+    
+    // 检测 CommonJS 的特征
+    const hasRequire = /(?:^|[^\w$])require\s*\(/m.test(cleaned);
+    const hasModuleExports = /(?:^|[^\w$])module\.exports/m.test(cleaned);
+    const hasExports = /(?:^|[^\w$])exports\./m.test(cleaned);
+    
+    return hasRequire || hasModuleExports || hasExports;
+}
 
-            // 4. 添加 CommonJS 全局变量
-            if (hasSpecificSyntax(code, /(?:^|[^\w$])(?:module|exports)(?:[^\w$]|$)/m)) {
-                const globalsPolyfill = `
-// CommonJS 全局变量 polyfill
-if (typeof module === 'undefined') {
-    var module = { exports: {} };
+/**
+ * 清理代码中的注释和字符串
+ */
+function cleanCode(code: string): string {
+    let cleanCode = code;
+    
+    // 移除单行注释
+    cleanCode = cleanCode.replace(/\/\/.*$/gm, '');
+    
+    // 移除多行注释
+    cleanCode = cleanCode.replace(/\/\*[\s\S]*?\*\//g, '');
+    
+    // 移除字符串字面量（简化处理，支持单引号和双引号）
+    cleanCode = cleanCode.replace(/'([^'\\]|\\.)*'/g, '""');
+    cleanCode = cleanCode.replace(/"([^"\\]|\\.)*"/g, '""');
+    cleanCode = cleanCode.replace(/`([^`\\]|\\.)*`/g, '""');
+    
+    return cleanCode;
 }
-if (typeof exports === 'undefined') {
-    var exports = module.exports;
-}
-`;
-                transformedCode = globalsPolyfill + transformedCode;
-            }
-            return {
-                code: transformedCode,
-                map: null // 简化实现，不生成 source map
-            };
-        }
-    };
+
+/**
+ * 根据文件扩展名获取对应的 esbuild loader
+ */
+function getLoader(filename: string): TransformOptions['loader'] {
+    const ext = path.extname(cleanUrl(filename)).slice(1);
+    
+    switch (ext) {
+        case 'js':
+        case 'cjs':
+        case 'mjs':
+            return 'js';
+        case 'ts':
+        case 'cts':
+        case 'mts':
+            return 'ts';
+        case 'jsx':
+            return 'jsx';
+        case 'tsx':
+            return 'tsx';
+        default:
+            return 'js';
+    }
 } 

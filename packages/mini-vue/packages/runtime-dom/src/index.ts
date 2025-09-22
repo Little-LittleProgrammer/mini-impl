@@ -22,13 +22,19 @@ export const createApp = (...args) => {
 	const app = ensureRenderer().createApp(...args)
 
 	// 获取到 mount 挂载方法
-	const { mount } = app
+	const { mount, unmount } = app
 	// 对该方法进行重构，标准化 container，在重新触发 mount 进行挂载
 	app.mount = (containerOrSelector: Element | string) => {
 		const container = normalizeContainer(containerOrSelector)
 		if (!container) return
 		mount(container)
 	}
+
+    app.unmount = (containerOrSelector: Element | string) => {
+        const container = normalizeContainer(containerOrSelector)
+        if (!container) return
+        unmount(container)
+    }
 
 	return app
 }

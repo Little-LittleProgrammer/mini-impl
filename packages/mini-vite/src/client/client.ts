@@ -320,92 +320,18 @@ function updateCss(update: any) {
   const { path, timestamp } = update
   console.log(`[mini-vite] css hot updated: ${path}`)
   
+  // 对于CSS文件，我们需要重新导入JavaScript模块而不是直接获取CSS内容
+  // 因为CSS插件将CSS转换为包含updateStyle函数的JavaScript模块
   const newUrl = `${path}${path.includes('?') ? '&' : '?'}t=${timestamp}`
   
-  // 查找现有的CSS链接和样式
-  const links = document.querySelectorAll<HTMLLinkElement>(
-    `link[rel="stylesheet"][href*="${path}"], style[data-vite-dev-id*="${path}"]`
-  )
-  
-  if (links.length > 0) {
-    // 更新现有的CSS链接/样式
-    links.forEach(link => {
-      if (link.tagName === 'LINK') {
-        const newLink = link.cloneNode() as HTMLLinkElement
-        newLink.href = newUrl
-        newLink.onload = () => {
-          try {
-            link.remove()
-            console.log(`[mini-vite] css link updated: ${path}`)
-          } catch (e) {
-            console.error(`[mini-vite] failed to remove old css link: ${path}`, e)
-          }
-        }
-        newLink.onerror = (err) => {
-          console.error(`[mini-vite] failed to load updated css: ${newUrl}`, err)
-          try {
-            link.remove()
-          } catch (e) {
-            console.error(`[mini-vite] failed to remove old css link on error: ${path}`, e)
-          }
-        }
-        try {
-          link.after(newLink)
-        } catch (e) {
-          console.error(`[mini-vite] failed to insert new css link: ${path}`, e)
-        }
-      } else if (link.tagName === 'STYLE') {
-        // 对于内联样式，需要重新获取内容
-        fetch(newUrl)
-          .then(res => {
-            if (!res.ok) {
-              throw new Error(`HTTP ${res.status}: ${res.statusText}`)
-            }
-            return res.text()
-          })
-          .then(css => {
-            // 更新样式内容
-            try {
-              const newStyle = document.createElement('style')
-              newStyle.setAttribute('type', 'text/css')
-              newStyle.setAttribute('data-vite-dev-id', path)
-              newStyle.innerHTML = css
-              link.parentNode?.replaceChild(newStyle, link)
-              console.log(`[mini-vite] inline css updated: ${path}`)
-            } catch (e) {
-              console.error(`[mini-vite] failed to update inline css: ${path}`, e)
-            }
-          })
-          .catch(err => {
-            console.error(`[mini-vite] failed to fetch updated css: ${newUrl}`, err)
-          })
-      }
+  // 使用动态导入重新加载CSS模块（JavaScript代码）
+  import(/* @vite-ignore */ newUrl)
+    .then(() => {
+      console.log(`[mini-vite] css module reloaded: ${path}`)
     })
-  } else {
-    // 如果没有找到对应的标签，尝试重新加载CSS模块
-    fetch(newUrl)
-      .then(res => {
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}: ${res.statusText}`)
-        }
-        return res.text()
-      })
-      .then(css => {
-        try {
-          const style = document.createElement('style')
-          style.setAttribute('type', 'text/css')
-          style.setAttribute('data-vite-dev-id', path)
-          style.innerHTML = css
-          document.head.appendChild(style)
-          console.log(`[mini-vite] new css style added: ${path}`)
-        } catch (e) {
-          console.error(`[mini-vite] failed to add new css style: ${path}`, e)
-        }
-      })
-      .catch(err => {
-        console.error(`[mini-vite] failed to fetch css: ${newUrl}`, err)
-      })
-  }
+    .catch(err => {
+      console.error(`[mini-vite] failed to reload css module: ${path}`, err)
+    })
 }
 
 // 错误处理相关

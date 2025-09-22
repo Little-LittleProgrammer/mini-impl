@@ -15,7 +15,11 @@ export function createAppAPI<HostElement>(render) {
 				const vnode = createVNode(rootComponent, rootProps)
 				// 通过 render 函数进行挂载
 				render(vnode, rootContainer)
-			}
+			},
+            unmount(rootContainer) {
+                render(null, rootContainer)
+                return app
+            }
 		}
 
 		return app

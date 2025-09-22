@@ -22,9 +22,7 @@ export async function transformWithEsbuild(
         // 否则，在检查扩展名前先清理查询参数
         const ext = path.extname(/\.\w+$/.test(filename) ? filename : cleanUrl(filename)).slice(1)
 
-        if (ext === 'cjs' || ext === 'mjs') {
-            loader = 'js';
-        } else if (ext === 'cts' || ext === 'mts') {
+        if (ext === 'cts' || ext === 'mts') {
             loader = 'ts';
         } else {
             loader = ext as Loader;
@@ -49,11 +47,12 @@ export function esbuildTransformPlugin(): Plugin {
             }
         },
         async transform(code, id) {
-            const reg = /\.(m?ts|[jt]sx|cjs|mjs)$/;
+            // 只处理 TypeScript 和 JSX 文件，不处理 CommonJS 文件
+            const reg = /\.(m?ts|[jt]sx)$/;
             if (reg.test(id) || reg.test(cleanUrl(id))) {
                 const result = await transformWithEsbuild(code, id, {
                     target: "esnext",
-                    format: "esm",
+                    format: "esm", // 保持 ESM 格式，不进行 CommonJS 转换
                     sourcemap: true,
                 });
                 return {

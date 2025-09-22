@@ -50,8 +50,10 @@ const styleElement = updateStyle(cssStr, moduleId);
 
 // HMR支持
 if (import.meta.hot) {
-    import.meta.hot.accept(() => {
+    import.meta.hot.accept((newModule) => {
         console.log('[HMR] CSS updated:', moduleId);
+        // 当模块被重新导入时，updateStyle函数会自动执行
+        // 因为模块的顶层代码会重新运行
     });
     
     // 当模块被替换时，清理旧的样式

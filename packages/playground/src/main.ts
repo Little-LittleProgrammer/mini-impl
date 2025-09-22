@@ -1,47 +1,18 @@
 import './style.css'
-import { getCount, increment, decrement } from './counter.js'
+import math from './math.js'
 
-console.log('🚀 Mini-Vite HMR 测试...')
+// 测试 cjs 模块
 
-// 创建一个简单的计数器来测试HMR
-const counter = document.createElement('div')
-counter.id = 'counter'
-counter.innerHTML = `
-  <h2>HMR 测试</h2>
-  <p>Count: <span id="count">${getCount()}</span></p>
-  <button id="increment">+</button>
-  <button id="decrement">-</button>
-`
+math.add(1, 2)
+console.log('🚀 Mini-Vite cjs模块 插件测试...', math.add(1, 2))
 
-document.body.appendChild(counter)
+// 测试 css 插件
+console.log('🚀 Mini-Vite css 插件测试...')
+import './style.css'
 
-const countEl = document.getElementById('count')
-const incrementBtn = document.getElementById('increment')
-const decrementBtn = document.getElementById('decrement')
+// 测试预构建
+import {add} from 'lodash-es'
+console.log('🚀 Mini-Vite 预构建测试...', add(1, 2))
 
-incrementBtn.addEventListener('click', () => {
-  const newCount = increment()
-  countEl.textContent = newCount.toString()
-  console.log('Count incremented:', newCount)
-})
-
-decrementBtn.addEventListener('click', () => {
-  const newCount = decrement()
-  countEl.textContent = newCount.toString()
-  console.log('Count decremented:', newCount)
-})
-
-// HMR 测试
-if (import.meta.hot) {
-  console.log('HMR is enabled')
-  
-  // 接受自身更新
-  import.meta.hot.accept((newModule) => {
-    console.log('Module updated')
-  })
-  
-  // 注册清理回调
-  import.meta.hot.dispose(() => {
-    console.log('Module disposed')
-  })
-}
+// 测试 hmr 
+import './hmr'

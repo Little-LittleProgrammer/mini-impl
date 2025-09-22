@@ -41,10 +41,6 @@ export async function optimizeDeps(config: OptimizeDepsOptions) {
         target: 'esnext',
         mainFields: ['module', 'browser', 'main'],
         conditions: ['module', 'browser', 'import'],
-        // 确保 CommonJS 模块正确转换为 ES 模块
-        banner: {
-            js: '// CommonJS to ESM转换\n',
-        },
         // 处理一些可能的 CommonJS 全局变量
         define: {
             'global': 'globalThis',

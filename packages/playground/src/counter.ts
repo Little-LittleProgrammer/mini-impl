@@ -3,6 +3,7 @@
 let count = 0
 
 export function getCount() {
+    console.log('🚀 Mini-Vite getCount...', count)
   return count
 }
 

@@ -86,8 +86,9 @@ socket.addEventListener('close', () => {
         },
         resolveId(id) {
             if (id === '/node_modules/.mini-vite/client.js') {
-                return id
+                return { id }
             }
+            return null
         },
         load(id) {
             if (id === '/node_modules/.mini-vite/client.js') {
