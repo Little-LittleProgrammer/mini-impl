@@ -43,7 +43,7 @@ import { Plugin } from '../plugin'
  * 执行流程：
  * 配置解析 -> 构建阶段 -> 输出阶段 -> 独立钩子
  * 
- * resolve、load、transform三个钩子是实际工程化项目当中使用较为频繁的三个钩子
+ * resolveId、load、transform三个钩子是实际工程化项目当中使用较为频繁的三个钩子
  */
 
 export interface PluginContainer {

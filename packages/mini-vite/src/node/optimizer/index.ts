@@ -13,6 +13,7 @@ export async function optimizeDeps(config: OptimizeDepsOptions) {
     console.debug(colors.green('>>>扫描依赖项...... \n'))
     /**
      * 扫描依赖项，将依赖项添加到 deps 集合中
+     * 递归扫描依赖项
      */
     await build({
         entryPoints: [entry],
