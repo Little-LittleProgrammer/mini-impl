@@ -213,15 +213,15 @@ export function createHMRServer(
             path: normalizedPath
           } as HMRFullReloadPayload)
         } else {
-          // 发送模块更新
-          const updates: Update[] = [{
-            type: 'js-update',
-            path: normalizedPath,
+          // 为每个边界模块创建更新信息
+          const updates: Update[] = boundaryModules.map(boundaryModule => ({
+            type: 'js-update' as const,
+            path: boundaryModule,
             acceptedPath: normalizedPath,
             timestamp,
-          }]
+          }))
           
-          console.log(colors.green(`[HMR] 发送模块更新: ${normalizedPath}`))
+          console.log(colors.green(`[HMR] 发送模块更新: ${normalizedPath} -> 边界模块: ${boundaryModules.join(', ')}`))
           send({
             type: 'update',
             updates,

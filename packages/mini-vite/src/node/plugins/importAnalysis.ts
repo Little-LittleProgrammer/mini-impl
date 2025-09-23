@@ -4,7 +4,6 @@ import { ServerContext } from '../server'
 import { isJsRequest, normalizePath } from '../utils'
 import { init, parse } from 'es-module-lexer'
 import MagicString from 'magic-string'
-import resolve from 'resolve'
 
 /**
  * import分析插件用于在遍历分析已经编译好的模块文件内ESM导入语句
