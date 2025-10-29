@@ -17,6 +17,18 @@ const pendingPreFlushCbs: Function[] = []
 
 /**
  * 队列预处理函数
+ * 将 job 加入微任务队列中,保证同一个时间段多个副作用只执行1次，避免重复计算和渲染
+ * ```javascript
+    const count = ref(0)
+    const double = computed(() => count.value * 2)
+
+    // 在一个函数里连续修改多次
+    count.value++ // 变化1
+    count.value++ // 变化2
+    count.value++ // 变化3
+    // 我们希望 double 只重新计算一次，而不是三次
+    count.value++
+    ```
  */
 export function queuePreFlushCb(cb: Function) {
 	queueCb(cb, pendingPreFlushCbs)

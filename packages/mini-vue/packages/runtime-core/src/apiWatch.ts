@@ -53,7 +53,7 @@ function doWatch(
 	const job = () => {
 		if (cb) {
 			// watch(source, cb)
-			const newValue = effect.run()
+			const newValue = effect.run()// 触发 traverse 让watch 的deep使每一个属性都收集到依赖
 			if (deep || hasChanged(newValue, oldValue)) {
 				cb(newValue, oldValue)
 				oldValue = newValue
