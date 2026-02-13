@@ -9,14 +9,15 @@ let isFirstUpdate = true
 
 // 模块缓存和依赖管理
 interface ModuleCache {
-  [url: string]: {
-    module?: any
-    callbacks: Set<(mod: any) => void>
-    isSelfAccepting: boolean
-    isDeclined: boolean
-    acceptDeps: Set<string>
-    disposers: Set<() => void>
-  }
+    [url: string]: {
+        module?: any
+        selfCallbacks: Set<(mod: any) => void>
+        depCallbacks: Map<string, Set<(mod: any) => void>>
+        isSelfAccepting: boolean
+        isDeclined: boolean
+        acceptDeps: Set<string>
+        disposers: Set<() => void>
+    }
 }
 
 const moduleCache: ModuleCache = {}
@@ -24,331 +25,345 @@ const hotModulesMap = new Map<string, HotModule>()
 
 // HMR API接口定义
 interface HotModule {
-  data: any
-  accept(): void
-  accept(callback: (newMod: any) => void): void
-  accept(dep: string, callback: (newMod: any) => void): void
-  accept(deps: string[], callback: (newMods: any[]) => void): void
-  dispose(callback: () => void): void
-  decline(): void
-  invalidate(): void
-  // 添加更多HMR API方法
-  on(event: string, cb: (...args: any[]) => void): void
-  off(event: string, cb?: (...args: any[]) => void): void
-  send(data: any): void
+    data: any
+    accept(): void
+    accept(callback: (newMod: any) => void): void
+    accept(dep: string, callback: (newMod: any) => void): void
+    accept(deps: string[], callback: (newMods: any[]) => void): void
+    dispose(callback: () => void): void
+    decline(): void
+    invalidate(): void
+    // 添加更多HMR API方法
+    on(event: string, cb: (...args: any[]) => void): void
+    off(event: string, cb?: (...args: any[]) => void): void
+    send(data: any): void
 }
 
 // 创建HMR API
 function createHotContext(ownerPath: string): HotModule {
-  if (!moduleCache[ownerPath]) {
-    moduleCache[ownerPath] = {
-      callbacks: new Set(),
-      isSelfAccepting: false,
-      isDeclined: false,
-      acceptDeps: new Set(),
-      disposers: new Set()
-    }
-  }
-
-  const mod = moduleCache[ownerPath]
-
-  // 事件监听器映射
-  const eventListeners = new Map<string, Set<(...args: any[]) => void>>()
-
-  const hotModule: HotModule = {
-    data: mod.module?.hot?.data || {},
-    
-    // 接受自身更新
-    accept(deps?: string | string[] | ((newMod: any) => void), callback?: (newMod: any) => void) {
-      if (typeof deps === 'undefined') {
-        // accept() - 接受自身更新，无回调
-        mod.isSelfAccepting = true
-      } else if (typeof deps === 'function') {
-        // accept(callback) - 接受自身更新，有回调
-        mod.isSelfAccepting = true
-        mod.callbacks.add(deps as (newMod: any) => void)
-      } else if (typeof deps === 'string') {
-        // accept(dep, callback) - 接受单个依赖更新
-        mod.acceptDeps.add(deps)
-        if (callback) mod.callbacks.add(callback)
-      } else if (Array.isArray(deps)) {
-        // accept([deps], callback) - 接受多个依赖更新
-        deps.forEach(dep => mod.acceptDeps.add(dep))
-        if (callback) mod.callbacks.add(callback)
-      }
-    },
-
-    // 注册清理回调
-    dispose(callback: () => void) {
-      mod.disposers.add(callback)
-    },
-
-    // 拒绝更新
-    decline() {
-      mod.isDeclined = true
-    },
-
-    // 使模块失效，触发完整重新加载
-    invalidate() {
-      location.reload()
-    },
-
-    // 添加事件监听器
-    on(event: string, cb: (...args: any[]) => void) {
-      if (!eventListeners.has(event)) {
-        eventListeners.set(event, new Set())
-      }
-      eventListeners.get(event)!.add(cb)
-    },
-
-    // 移除事件监听器
-    off(event: string, cb?: (...args: any[]) => void) {
-      if (!eventListeners.has(event)) return
-      if (cb) {
-        eventListeners.get(event)!.delete(cb)
-      } else {
-        eventListeners.delete(event)
-      }
-    },
-
-    // 发送自定义消息到服务器
-    send(data: any) {
-      socket.send(JSON.stringify({
-        type: 'custom',
-        event: 'message',
-        data: {
-          ownerPath,
-          ...data
+    if (!moduleCache[ownerPath]) {
+        moduleCache[ownerPath] = {
+            selfCallbacks: new Set(),
+            depCallbacks: new Map(),
+            isSelfAccepting: false,
+            isDeclined: false,
+            acceptDeps: new Set(),
+            disposers: new Set()
         }
-      }))
     }
-  }
 
-  return hotModule
+    const mod = moduleCache[ownerPath]
+
+    // 事件监听器映射
+    const eventListeners = new Map<string, Set<(...args: any[]) => void>>()
+
+    function normalizeAcceptedDep(dep: string): string {
+        if (dep.startsWith('/')) {
+            return dep
+        }
+        if (dep.startsWith('.')) {
+            const ownerDir = ownerPath.slice(0, ownerPath.lastIndexOf('/') + 1)
+            return new URL(dep, `${location.origin}${ownerDir}`).pathname
+        }
+        return dep
+    }
+
+    function addDepCallback(dep: string, cb: (mod: any) => void) {
+        const normalizedDep = normalizeAcceptedDep(dep)
+        mod.acceptDeps.add(normalizedDep)
+        if (!mod.depCallbacks.has(normalizedDep)) {
+            mod.depCallbacks.set(normalizedDep, new Set())
+        }
+        mod.depCallbacks.get(normalizedDep)!.add(cb)
+    }
+
+    const hotModule: HotModule = {
+        data: mod.module?.hot?.data || {},
+
+        // 接受自身更新
+        accept(
+            deps?: string | string[] | ((newMod: any) => void),
+            callback?: (newMod: any) => void
+        ) {
+            if (typeof deps === 'undefined') {
+                // accept() - 接受自身更新，无回调
+                mod.isSelfAccepting = true
+            } else if (typeof deps === 'function') {
+                // accept(callback) - 接受自身更新，有回调
+                mod.isSelfAccepting = true
+                mod.selfCallbacks.add(deps as (newMod: any) => void)
+            } else if (typeof deps === 'string') {
+                // accept(dep, callback) - 接受单个依赖更新
+                if (callback) {
+                    addDepCallback(deps, callback)
+                } else {
+                    mod.acceptDeps.add(normalizeAcceptedDep(deps))
+                }
+            } else if (Array.isArray(deps)) {
+                // accept([deps], callback) - 接受多个依赖更新
+                deps.forEach(dep => {
+                    if (callback) {
+                        addDepCallback(dep, (newMod: any) =>
+                            (callback as (newMods: any[]) => void)([newMod])
+                        )
+                    } else {
+                        mod.acceptDeps.add(normalizeAcceptedDep(dep))
+                    }
+                })
+            }
+        },
+
+        // 注册清理回调
+        dispose(callback: () => void) {
+            mod.disposers.add(callback)
+        },
+
+        // 拒绝更新
+        decline() {
+            mod.isDeclined = true
+        },
+
+        // 使模块失效，触发完整重新加载
+        invalidate() {
+            location.reload()
+        },
+
+        // 添加事件监听器
+        on(event: string, cb: (...args: any[]) => void) {
+            if (!eventListeners.has(event)) {
+                eventListeners.set(event, new Set())
+            }
+            eventListeners.get(event)!.add(cb)
+        },
+
+        // 移除事件监听器
+        off(event: string, cb?: (...args: any[]) => void) {
+            if (!eventListeners.has(event)) return
+            if (cb) {
+                eventListeners.get(event)!.delete(cb)
+            } else {
+                eventListeners.delete(event)
+            }
+        },
+
+        // 发送自定义消息到服务器
+        send(data: any) {
+            socket.send(
+                JSON.stringify({
+                    type: 'custom',
+                    event: 'message',
+                    data: {
+                        ownerPath,
+                        ...data
+                    }
+                })
+            )
+        }
+    }
+
+    return hotModule
 }
 
 // 监听WebSocket消息
 socket.addEventListener('message', async ({ data }) => {
-  handleMessage(JSON.parse(data))
+    handleMessage(JSON.parse(data))
 })
 
 socket.addEventListener('open', () => {
-  console.log('[mini-vite] connected')
+    console.log('[mini-vite] connected')
 })
 
 socket.addEventListener('close', () => {
-  console.log('[mini-vite] server connection lost. polling for restart...')
-  setInterval(() => {
-    new WebSocket(`${socketProtocol}://${socketHost}`, 'vite-hmr')
-      .addEventListener('open', () => {
-        location.reload()
-      })
-  }, 1000)
+    console.log('[mini-vite] server connection lost. polling for restart...')
+    setInterval(() => {
+        new WebSocket(
+            `${socketProtocol}://${socketHost}`,
+            'vite-hmr'
+        ).addEventListener('open', () => {
+            location.reload()
+        })
+    }, 1000)
 })
 
 // 处理不同类型的HMR消息
 async function handleMessage(payload: any) {
-  switch (payload.type) {
-    case 'connected':
-      console.log(`[mini-vite] connected.`)
-      break
-    case 'update':
-      if (isFirstUpdate && hasErrorOverlay()) {
-        window.location.reload()
-        return
-      } else {
-        clearErrorOverlay()
-      }
-      isFirstUpdate = false
-      
-      // 处理更新
-      await Promise.all(
-        payload.updates.map((update: any) => {
-          if (update.type === 'js-update') {
-            return updateModule(update)
-          } else if (update.type === 'css-update') {
-            return updateCss(update)
-          }
-        })
-      )
-      break
-    case 'full-reload':
-      console.log(`[mini-vite] page reload triggered by ${payload.path || 'unknown'}`)
-      window.location.reload()
-      break
-    case 'prune':
-      // 移除无效的模块
-      payload.paths.forEach((path: string) => {
-        const cached = moduleCache[path]
-        if (cached) {
-          // 执行清理回调
-          cached.disposers.forEach(disposer => {
-            try {
-              disposer()
-            } catch (e) {
-              console.error(`[mini-vite] error during module disposal:`, e)
+    switch (payload.type) {
+        case 'connected':
+            console.log(`[mini-vite] connected.`)
+            break
+        case 'update':
+            if (isFirstUpdate && hasErrorOverlay()) {
+                window.location.reload()
+                return
+            } else {
+                clearErrorOverlay()
             }
-          })
-          delete moduleCache[path]
-          hotModulesMap.delete(path)
-        }
-      })
-      break
-    case 'error':
-      showErrorOverlay(payload.err)
-      break
-    default:
-      console.warn(`[mini-vite] unknown message type: ${payload.type}`)
-  }
-}
+            isFirstUpdate = false
 
-// 查找可以接受此更新的模块边界
-function findAcceptingModule(
-  path: string,
-  acceptedPath: string,
-  visited: Set<string> = new Set()
-): string | null {
-  if (visited.has(path)) return null
-  visited.add(path)
-
-  const cached = moduleCache[path]
-  if (!cached) return null
-
-  if (cached.isSelfAccepting && path === acceptedPath) {
-    return path
-  }
-
-  if (cached.acceptDeps.has(acceptedPath)) {
-    return path
-  }
-
-  // 向上查找父模块
-  for (const importer of getImporters(path)) {
-    const found = findAcceptingModule(importer, acceptedPath, visited)
-    if (found) return found
-  }
-
-  return null
-}
-
-// 获取模块的导入者
-function getImporters(path: string): string[] {
-  const importers: string[] = []
-  for (const [modulePath, cache] of Object.entries(moduleCache)) {
-    if (cache.acceptDeps.has(path) || (cache.isSelfAccepting && modulePath === path)) {
-      importers.push(modulePath)
+            // 处理更新
+            await Promise.all(
+                payload.updates.map((update: any) => {
+                    if (update.type === 'js-update') {
+                        return updateModule(update)
+                    } else if (update.type === 'css-update') {
+                        return updateCss(update)
+                    }
+                })
+            )
+            break
+        case 'full-reload':
+            console.log(
+                `[mini-vite] page reload triggered by ${payload.path || 'unknown'}`
+            )
+            window.location.reload()
+            break
+        case 'prune':
+            // 移除无效的模块
+            payload.paths.forEach((path: string) => {
+                const cached = moduleCache[path]
+                if (cached) {
+                    // 执行清理回调
+                    cached.disposers.forEach(disposer => {
+                        try {
+                            disposer()
+                        } catch (e) {
+                            console.error(
+                                `[mini-vite] error during module disposal:`,
+                                e
+                            )
+                        }
+                    })
+                    delete moduleCache[path]
+                    hotModulesMap.delete(path)
+                }
+            })
+            break
+        case 'error':
+            showErrorOverlay(payload.err)
+            break
+        default:
+            console.warn(`[mini-vite] unknown message type: ${payload.type}`)
     }
-  }
-  return importers
+}
+
+function canAcceptUpdate(boundaryPath: string, acceptedPath: string): boolean {
+    const cached = moduleCache[boundaryPath]
+    if (!cached || cached.isDeclined) return false
+    if (boundaryPath === acceptedPath) {
+        return cached.isSelfAccepting
+    }
+    return cached.acceptDeps.has(acceptedPath)
 }
 
 // 更新JS模块
 async function updateModule(update: any) {
-  const { path, acceptedPath, timestamp } = update
-  console.log(`[mini-vite] hot updated: ${path}`)
-  
-  try {
-    // 查找可以处理此更新的边界模块
-    const boundary = findAcceptingModule(path, acceptedPath || path)
-    
-    if (!boundary) {
-      console.log(`[mini-vite] no HMR boundary found for ${path}, reloading page`)
-      window.location.reload()
-      return
-    }
+    const { path, acceptedPath, timestamp } = update
+    console.log(`[mini-vite] hot updated: ${path}`)
 
-    // 添加时间戳防止缓存
-    const newUrl = `${path}${path.includes('?') ? '&' : '?'}t=${timestamp}`
-    
-    // 获取边界模块的缓存
-    const boundaryCache = moduleCache[boundary]
-    if (!boundaryCache) {
-      window.location.reload()
-      return
-    }
+    try {
+        const boundary = path
+        const updateTarget = acceptedPath || path
 
-    // 如果模块被拒绝，则全量刷新
-    if (boundaryCache.isDeclined) {
-      console.log(`[mini-vite] module ${boundary} declined the update, reloading page`)
-      window.location.reload()
-      return
-    }
-
-    // 执行清理回调
-    boundaryCache.disposers.forEach(disposer => {
-      try {
-        disposer()
-      } catch (e) {
-        console.error(`[mini-vite] error during module disposal:`, e)
-      }
-    })
-
-    // 动态导入更新的模块
-    const newModule = await import(newUrl)
-    
-    // 更新模块缓存
-    if (moduleCache[path]) {
-      moduleCache[path].module = newModule
-    }
-
-    // 如果是自我接受的模块
-    if (boundary === path && boundaryCache.isSelfAccepting) {
-      // 执行模块自身的更新逻辑
-      if (newModule && newModule.default && typeof newModule.default === 'function') {
-        newModule.default()
-      }
-    } else {
-      // 执行依赖更新回调
-      boundaryCache.callbacks.forEach(callback => {
-        try {
-          callback(newModule)
-        } catch (e) {
-          console.error(`[mini-vite] error during HMR callback:`, e)
+        if (!canAcceptUpdate(boundary, updateTarget)) {
+            console.log(
+                `[mini-vite] no HMR boundary found for ${path}, reloading page`
+            )
+            window.location.reload()
+            return
         }
-      })
-    }
 
-    console.log(`[mini-vite] hot update applied for ${path}`)
-  } catch (error) {
-    console.error(`[mini-vite] failed to update module ${path}:`, error)
-    showErrorOverlay(error)
-  }
+        // 添加时间戳防止缓存
+        const newUrl = `${updateTarget}${updateTarget.includes('?') ? '&' : '?'}t=${timestamp}`
+
+        // 获取边界模块的缓存
+        const boundaryCache = moduleCache[boundary]
+        if (!boundaryCache) {
+            window.location.reload()
+            return
+        }
+
+        // 执行清理回调
+        boundaryCache.disposers.forEach(disposer => {
+            try {
+                disposer()
+            } catch (e) {
+                console.error(`[mini-vite] error during module disposal:`, e)
+            }
+        })
+
+        // 动态导入更新的模块
+        const newModule = await import(newUrl)
+
+        // 更新模块缓存
+        if (moduleCache[updateTarget]) {
+            moduleCache[updateTarget].module = newModule
+        }
+
+        // 自身更新：执行 self accept 回调
+        if (boundary === updateTarget && boundaryCache.isSelfAccepting) {
+            boundaryCache.selfCallbacks.forEach(callback => {
+                try {
+                    callback(newModule)
+                } catch (e) {
+                    console.error(`[mini-vite] error during HMR callback:`, e)
+                }
+            })
+        } else {
+            // 依赖更新：只触发对应依赖注册的回调
+            const depCallbacks = boundaryCache.depCallbacks.get(updateTarget)
+            depCallbacks?.forEach(callback => {
+                try {
+                    callback(newModule)
+                } catch (e) {
+                    console.error(`[mini-vite] error during HMR callback:`, e)
+                }
+            })
+        }
+
+        console.log(`[mini-vite] hot update applied for ${path}`)
+    } catch (error) {
+        console.error(`[mini-vite] failed to update module ${path}:`, error)
+        showErrorOverlay(error)
+    }
 }
 
 // 更新CSS
 function updateCss(update: any) {
-  const { path, timestamp } = update
-  console.log(`[mini-vite] css hot updated: ${path}`)
-  
-  // 对于CSS文件，我们需要重新导入JavaScript模块而不是直接获取CSS内容
-  // 因为CSS插件将CSS转换为包含updateStyle函数的JavaScript模块
-  const newUrl = `${path}${path.includes('?') ? '&' : '?'}t=${timestamp}`
-  
-  // 使用动态导入重新加载CSS模块（JavaScript代码）
-  import(/* @vite-ignore */ newUrl)
-    .then(() => {
-      console.log(`[mini-vite] css module reloaded: ${path}`)
-    })
-    .catch(err => {
-      console.error(`[mini-vite] failed to reload css module: ${path}`, err)
-    })
+    const { path, timestamp } = update
+    console.log(`[mini-vite] css hot updated: ${path}`)
+
+    // 对于CSS文件，我们需要重新导入JavaScript模块而不是直接获取CSS内容
+    // 因为CSS插件将CSS转换为包含updateStyle函数的JavaScript模块
+    const newUrl = `${path}${path.includes('?') ? '&' : '?'}t=${timestamp}`
+
+    // 使用动态导入重新加载CSS模块（JavaScript代码）
+    import(/* @vite-ignore */ newUrl)
+        .then(() => {
+            console.log(`[mini-vite] css module reloaded: ${path}`)
+        })
+        .catch(err => {
+            console.error(
+                `[mini-vite] failed to reload css module: ${path}`,
+                err
+            )
+        })
 }
 
 // 错误处理相关
 function hasErrorOverlay(): boolean {
-  return document.querySelector('#mini-vite-error-overlay') !== null
+    return document.querySelector('#mini-vite-error-overlay') !== null
 }
 
 function clearErrorOverlay() {
-  document.querySelector('#mini-vite-error-overlay')?.remove()
+    document.querySelector('#mini-vite-error-overlay')?.remove()
 }
 
 function showErrorOverlay(err: any) {
-  clearErrorOverlay()
-  
-  const errorOverlay = document.createElement('div')
-  errorOverlay.id = 'mini-vite-error-overlay'
-  errorOverlay.innerHTML = `
+    clearErrorOverlay()
+
+    const errorOverlay = document.createElement('div')
+    errorOverlay.id = 'mini-vite-error-overlay'
+    errorOverlay.innerHTML = `
     <div style="
       position: fixed;
       top: 0;
@@ -376,51 +391,52 @@ function showErrorOverlay(err: any) {
       </div>
     </div>
   `
-  
-  errorOverlay.addEventListener('click', clearErrorOverlay)
-  document.body.appendChild(errorOverlay)
+
+    errorOverlay.addEventListener('click', clearErrorOverlay)
+    document.body.appendChild(errorOverlay)
 }
 
 // 创建并暴露全局HMR API
 function createGlobalHMRContext() {
-  // 添加导入时的HMR注册
-//   const originalImport = window.import || eval('import')
-  
-  return {
-    createHotContext,
-    moduleCache,
-    socket,
-    
-    // 注册模块
-    registerModule(path: string, hotAccept?: () => void) {
-      if (!moduleCache[path]) {
-        moduleCache[path] = {
-          callbacks: new Set(),
-          isSelfAccepting: false,
-          isDeclined: false,
-          acceptDeps: new Set(),
-          disposers: new Set()
+    // 添加导入时的HMR注册
+    //   const originalImport = window.import || eval('import')
+
+    return {
+        createHotContext,
+        moduleCache,
+        socket,
+
+        // 注册模块
+        registerModule(path: string, hotAccept?: () => void) {
+            if (!moduleCache[path]) {
+                moduleCache[path] = {
+                    selfCallbacks: new Set(),
+                    depCallbacks: new Map(),
+                    isSelfAccepting: false,
+                    isDeclined: false,
+                    acceptDeps: new Set(),
+                    disposers: new Set()
+                }
+            }
+
+            const hotModule = createHotContext(path)
+            hotModulesMap.set(path, hotModule)
+
+            if (hotAccept) {
+                hotModule.accept()
+            }
+
+            return hotModule
         }
-      }
-      
-      const hotModule = createHotContext(path)
-      hotModulesMap.set(path, hotModule)
-      
-      if (hotAccept) {
-        hotModule.accept()
-      }
-      
-      return hotModule
     }
-  }
 }
 
 // 扩展window对象
 declare global {
-  interface Window {
-    __HMR_CACHE__: ModuleCache
-    __mini_vite__: ReturnType<typeof createGlobalHMRContext>
-  }
+    interface Window {
+        __HMR_CACHE__: ModuleCache
+        __mini_vite__: ReturnType<typeof createGlobalHMRContext>
+    }
 }
 
 window.__HMR_CACHE__ = moduleCache

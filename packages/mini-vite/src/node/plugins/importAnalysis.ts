@@ -92,7 +92,7 @@ export function importAnalysisPlugin(): Plugin {
             const normalizedImporter = normalizePath(
                 fsPathToUrl(importer, serverContext.root)
             )
-            if (serverContext.hmr && importees.length > 0) {
+            if (serverContext.hmr) {
                 serverContext.hmr.updateModuleGraph(
                     normalizedImporter,
                     importees
