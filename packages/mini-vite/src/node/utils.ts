@@ -31,6 +31,31 @@ export function normalizePath(id: string): string {
 }
 
 /**
+ * 判断某个文件路径是否位于 root 内
+ */
+export function isFileInsideRoot(filePath: string, root: string): boolean {
+    const normalizedRoot = normalizePath(path.resolve(root));
+    const normalizedFile = normalizePath(path.resolve(filePath));
+    return (
+        normalizedFile === normalizedRoot ||
+        normalizedFile.startsWith(`${normalizedRoot}/`)
+    );
+}
+
+/**
+ * 将文件系统路径转换为浏览器 URL 路径（root 内）
+ */
+export function fsPathToUrl(filePath: string, root: string): string {
+    const normalizedRoot = normalizePath(path.resolve(root));
+    const normalizedFile = normalizePath(path.resolve(filePath));
+    if (isFileInsideRoot(normalizedFile, normalizedRoot)) {
+        const relativePath = normalizePath(path.relative(normalizedRoot, normalizedFile));
+        return `/${relativePath}`;
+    }
+    return normalizedFile;
+}
+
+/**
  * 判断是否为 JS 模块资源
  */
 export function isJsRequest(url: string): boolean {

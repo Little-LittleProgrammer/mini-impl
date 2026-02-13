@@ -2,8 +2,8 @@ import path from "path";
 import resolve from "resolve";
 
 import { Plugin } from "../plugin";
-import { pathExists } from "fs-extra";
-import { normalizePath } from "../utils";
+import fse from "fs-extra";
+import { isFileInsideRoot, normalizePath } from "../utils";
 import { ServerContext } from "../server";
 
 /**
@@ -23,12 +23,18 @@ export default function resolvePlugin(): Plugin {
             // 判断是否为绝对路径
             if (path.isAbsolute(id)) {
                  // 路径存在，直接返回
-                if (await pathExists(id)) {
+                if (await fse.pathExists(id)) {
+                    if (!isFileInsideRoot(id, serverContext.root)) {
+                        return null;
+                    }
                     return { id };
                 }
                 // 路径不存在的情况下加上 root 路径前缀，支持类似 /src/main.ts 的情况
                 id = path.join(serverContext.root, id);
-                if (await pathExists(id)) {
+                if (await fse.pathExists(id)) {
+                    if (!isFileInsideRoot(id, serverContext.root)) {
+                        return null;
+                    }
                     return { id };
                 }
                 return null;
@@ -40,7 +46,10 @@ export default function resolvePlugin(): Plugin {
                  // 包含文件名后缀, 如 ./main.ts
                  if (hasExtension) {
                     resolveId = normalizePath(resolve.sync(id, { basedir: path.dirname(importer) }));
-                    if (await pathExists(resolveId)) {
+                    if (await fse.pathExists(resolveId)) {
+                        if (!isFileInsideRoot(resolveId, serverContext.root)) {
+                            return null;
+                        }
                         return { id: resolveId };
                     }
                  } else {
@@ -50,7 +59,10 @@ export default function resolvePlugin(): Plugin {
                         try {
                             const withExtension = `${id}${ext}`;
                             resolveId = normalizePath(resolve.sync(withExtension, { basedir: path.dirname(importer) }));
-                            if (await pathExists(resolveId)) {
+                            if (await fse.pathExists(resolveId)) {
+                                if (!isFileInsideRoot(resolveId, serverContext.root)) {
+                                    return null;
+                                }
                                 return { id: resolveId };
                             }
                         } catch (error) {

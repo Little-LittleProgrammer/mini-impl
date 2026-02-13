@@ -1,7 +1,7 @@
 import path from 'path'
 import { Plugin } from '../plugin'
 import { ServerContext } from '../server'
-import { isJsRequest, normalizePath } from '../utils'
+import { fsPathToUrl, isJsRequest, normalizePath } from '../utils'
 import { init, parse } from 'es-module-lexer'
 import MagicString from 'magic-string'
 
@@ -75,8 +75,9 @@ export function importAnalysisPlugin(): Plugin {
                         // 调用插件上下文的 resolve 方法，自动经过路径解析插件的处理
                         const resolved = await this.resolve(modSource, importer)
                         if (resolved) {
-                            ms.overwrite(modStart, modEnd, resolved.id)
-                            resolvedId = resolved.id
+                            const resolvedUrl = fsPathToUrl(resolved.id, serverContext.root)
+                            ms.overwrite(modStart, modEnd, resolvedUrl)
+                            resolvedId = resolvedUrl
                         }
                     }
 
@@ -88,7 +89,9 @@ export function importAnalysisPlugin(): Plugin {
             }
 
             // 更新模块依赖图
-            const normalizedImporter = normalizePath(importer)
+            const normalizedImporter = normalizePath(
+                fsPathToUrl(importer, serverContext.root)
+            )
             if (serverContext.hmr && importees.length > 0) {
                 serverContext.hmr.updateModuleGraph(
                     normalizedImporter,

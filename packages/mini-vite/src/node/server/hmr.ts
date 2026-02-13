@@ -4,7 +4,8 @@ import chokidar from 'chokidar'
 import path from 'node:path'
 import colors from 'picocolors'
 import { ServerContext } from './index'
-import { isCssRequest, isJsRequest, normalizePath } from '../utils'
+import { fsPathToUrl, isCssRequest, isJsRequest, normalizePath } from '../utils'
+import { invalidateTransformCache } from '../transformRequest'
 
 export interface HmrContext {
   send(payload: HMRPayload): void
@@ -182,6 +183,11 @@ export function createHMRServer(
       }
 
       const normalizedPath = normalizePath(filePath)
+      const changedUrl = normalizePath(
+        fsPathToUrl(normalizedPath, serverContext.root)
+      )
+      invalidateTransformCache(normalizedPath)
+      invalidateTransformCache(changedUrl)
       
       // 如果相对路径为空或无效，跳过处理
       if (!normalizedPath) {
@@ -196,32 +202,32 @@ export function createHMRServer(
         // HTML文件变化 - 全量刷新
         send({
           type: 'full-reload',
-          path: normalizedPath
+          path: changedUrl
         } as HMRFullReloadPayload)
       } else if (isJsRequest(filePath) || filePath.endsWith('.vue') || filePath.endsWith('.ts') || filePath.endsWith('.tsx') || filePath.endsWith('.jsx')) {
         // JS/TS/Vue文件变化
         const timestamp = Date.now()
         
         // 获取受影响的边界模块
-        const boundaryModules = getBoundaryModules(normalizedPath)
+        const boundaryModules = getBoundaryModules(changedUrl)
         
         if (boundaryModules.length === 0) {
           // 如果找不到边界模块，进行全量刷新
-          console.log(colors.yellow(`[HMR] 找不到 ${normalizedPath} 的HMR边界，执行全量刷新`))
+          console.log(colors.yellow(`[HMR] 找不到 ${changedUrl} 的HMR边界，执行全量刷新`))
           send({
             type: 'full-reload',
-            path: normalizedPath
+            path: changedUrl
           } as HMRFullReloadPayload)
         } else {
           // 为每个边界模块创建更新信息
           const updates: Update[] = boundaryModules.map(boundaryModule => ({
             type: 'js-update' as const,
             path: boundaryModule,
-            acceptedPath: normalizedPath,
+            acceptedPath: changedUrl,
             timestamp,
           }))
           
-          console.log(colors.green(`[HMR] 发送模块更新: ${normalizedPath} -> 边界模块: ${boundaryModules.join(', ')}`))
+          console.log(colors.green(`[HMR] 发送模块更新: ${changedUrl} -> 边界模块: ${boundaryModules.join(', ')}`))
           send({
             type: 'update',
             updates,
@@ -232,22 +238,22 @@ export function createHMRServer(
         const timestamp = Date.now()
         const updates: Update[] = [{
           type: 'css-update',
-          path: normalizedPath,
-          acceptedPath: normalizedPath,
+          path: changedUrl,
+          acceptedPath: changedUrl,
           timestamp,
         }]
         
-        console.log(colors.green(`[HMR] CSS热更新: ${normalizedPath}`))
+        console.log(colors.green(`[HMR] CSS热更新: ${changedUrl}`))
         send({
           type: 'update',
           updates,
         } as HMRUpdatePayload)
       } else {
         // 其他文件变化 - 全量刷新
-        console.log(colors.yellow(`[HMR] 未知文件类型 ${normalizedPath}，执行全量刷新`))
+        console.log(colors.yellow(`[HMR] 未知文件类型 ${changedUrl}，执行全量刷新`))
         send({
           type: 'full-reload',
-          path: normalizedPath
+          path: changedUrl
         } as HMRFullReloadPayload)
       }
     } catch (error) {
@@ -271,6 +277,11 @@ export function createHMRServer(
       }
 
       const normalizedPath = normalizePath(filePath)
+      const changedUrl = normalizePath(
+        fsPathToUrl(normalizedPath, serverContext.root)
+      )
+      invalidateTransformCache(normalizedPath)
+      invalidateTransformCache(changedUrl)
       console.log(colors.green(`[HMR] 文件已添加: ${normalizedPath}`))
       // 新增文件触发全量刷新
       send({
@@ -289,7 +300,12 @@ export function createHMRServer(
         return
       }
 
-        const normalizedPath = normalizePath(filePath)
+      const normalizedPath = normalizePath(filePath)
+      const changedUrl = normalizePath(
+        fsPathToUrl(normalizedPath, serverContext.root)
+      )
+      invalidateTransformCache(normalizedPath)
+      invalidateTransformCache(changedUrl)
       console.log(colors.red(`[HMR] 文件已删除: ${normalizedPath}`))
       // 删除文件触发全量刷新
       send({

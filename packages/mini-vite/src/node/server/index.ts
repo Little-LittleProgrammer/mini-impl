@@ -4,10 +4,13 @@ import connect from 'connect'
 import colors from 'picocolors'
 // 用于读取文件
 import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { createServer } from 'node:http'
 import { optimizeDeps } from '../optimizer'
 import { createPluginContainer, type PluginContainer } from './pluginContainer'
 import { Plugin } from "../plugin";
+import fse from 'fs-extra'
+import sirv from 'sirv'
 
 import { indexHtmlMiddleware } from './middlewares/indexHtml'
 import { transformMiddleware } from './middlewares/transform'
@@ -46,6 +49,11 @@ export async function startDevServer() {
     }
     
     app.use(indexHtmlMiddleware(serverContext)); // 处理 index.html 文件
+    const publicDir = path.resolve(serverContext.root, 'public')
+    if (await fse.pathExists(publicDir)) {
+        // 与 Vite 一致，public 下资源以 /xxx 直接访问
+        app.use(sirv(publicDir, { dev: true }))
+    }
     app.use(transformMiddleware(serverContext)); // 处理其他文件
 
     for (const plugin of plugins) {
