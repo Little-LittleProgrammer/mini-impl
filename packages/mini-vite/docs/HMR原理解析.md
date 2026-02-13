@@ -54,10 +54,10 @@ flowchart LR
   B --> C[失效 transform 缓存]
   C --> D{文件类型}
   D -->|CSS| E[发送 update css-update]
-  D -->|JS/TS/Vue| F[根据 importerGraph 找 HMR 边界]
-  F --> G{找到边界?}
-  G -->|是| H[发送 update js-update]
-  G -->|否| I[发送 full-reload]
+  D -->|JS/TS/Vue| F[从变更模块向上收集候选边界]
+  F --> G{候选边界为空?}
+  G -->|否| H[发送多条 js-update 候选]
+  G -->|是| I[发送 full-reload]
   D -->|HTML/其他| I
   H --> J[浏览器动态 import 新模块]
   E --> J
@@ -123,15 +123,15 @@ if (import.meta.hot) {
 
 其中 `importAnalysis` 每次 transform 都会上报 importer 和 importees（即使 importees 为空，也会更新，用于清理旧依赖）。
 
-### 5.3 更新边界计算
+### 5.3 候选边界计算
 
-JS 变更时，服务端从“变更模块 URL”出发，沿 `importerGraph` 向上遍历，寻找更新边界：
+JS 变更时，服务端不再只算“单个边界”，而是从“变更模块 URL”出发，沿 `importerGraph` 向上做 BFS，收集整条导入链上的候选边界（包含变更模块本身）。
 
-- 没有导入者：当前模块可视为边界
-- 有导入者：继续向上找
-- 循环依赖：做循环检测，避免无限递归
+- 变更模块优先作为第一候选
+- 持续向上加入 importer，直到没有上游
+- 用 `visited` 去重，天然避免循环依赖导致的死循环
 
-如果找不到可用边界，回退到 `full-reload`。
+如果候选列表为空，服务端回退到 `full-reload`；否则发送一组 `js-update` 给客户端逐条尝试。
 
 ### 5.4 服务端消息协议
 
@@ -200,18 +200,18 @@ new WebSocket(`${socketProtocol}://${socketHost}`, 'vite-hmr')
 
 ### 6.3 JS 更新执行逻辑
 
-收到单条 `js-update` 后：
+收到 `update` 后，客户端会先拆分 JS/CSS 更新，然后对 JS 采用“多候选边界尝试”策略：
 
-1. 读取 `path`（边界）与 `acceptedPath`（变更模块）
-2. 校验该边界是否可接受此更新
+1. 逐条读取 `js-update`（`path` 为候选边界，`acceptedPath` 为实际变更模块）
+2. 逐条校验边界是否可接受此更新
    - `boundary === acceptedPath` 时，需 `isSelfAccepting`
    - 否则需 `acceptDeps` 包含 `acceptedPath`
-3. 用 `acceptedPath + ?t=timestamp` 动态 `import()`
-4. 触发 `dispose` 清理旧副作用
-5. 执行对应回调
-   - 自接收：执行 `selfCallbacks`
-   - 依赖接收：执行 `depCallbacks.get(acceptedPath)`
-6. 任何关键步骤失败，降级为整页刷新或错误提示
+3. 对可接受项执行热替换
+   - `acceptedPath + ?t=timestamp` 动态 `import()`
+   - 先执行 `dispose` 清理旧副作用
+   - 再按类型触发回调（`selfCallbacks` 或 `depCallbacks.get(acceptedPath)`）
+4. 只要任意一条候选边界应用成功，就保留局部热更新结果
+5. 如果所有 JS 候选都失败，才统一降级为整页刷新
 
 ### 6.4 CSS 更新执行逻辑
 
@@ -250,7 +250,7 @@ HMR 并不是“永远不刷新”，而是“能局部更新就局部更新，�
 
 当前实现已具备基础可用性，但仍有可演进空间：
 
-- 更精细的模块图与边界策略（例如与 transform 缓存联动的图失效策略）
+- 更精细的模块图失效策略（例如改动/删除时的增量清理与 prune 联动）
 - 更完整的 `accept(deps, cb)` 多依赖参数语义（目前按单依赖触发）
 - 更完善的 `prune` 生命周期（服务端主动发送无效模块清理）
 - 更丰富的错误恢复策略（比如编译恢复后自动移除 overlay 并局部重试）

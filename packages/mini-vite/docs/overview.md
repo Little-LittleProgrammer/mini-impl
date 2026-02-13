@@ -121,8 +121,8 @@ const importerGraph = new Map<string, Set<string>>()
 ```
 
 - 更新：`importAnalysis` 在 transform 时调用 `hmr.updateModuleGraph(importer, importees)`
-- 用途：文件变更时通过 `getBoundaryModules(changedFile)` 沿 `importerGraph` 向上找 HMR 边界
-- 边界：无导入者或循环依赖中的模块
+- 用途：文件变更时通过 `getBoundaryModules(changedFile)` 沿 `importerGraph` 向上收集候选边界（包含变更模块本身）
+- 特性：BFS + 去重，避免循环依赖导致重复遍历
 
 ### 2. Transform 缓存（`transformRequest.ts`）
 
@@ -170,7 +170,7 @@ const transformCache = new Map<string, TransformCacheEntry>()
 | 连接 | `new WebSocket(host, 'vite-hmr')` |
 | `createHotContext` | 由 importAnalysis 注入到每个模块 |
 | 消息处理 | `connected` / `update` / `full-reload` / `prune` / `error` |
-| JS 更新 | `findAcceptingModule` 找接受更新的模块 → `import(newUrl)` → 执行 dispose/callback |
+| JS 更新 | 服务端发送多候选 `js-update`，客户端逐条尝试应用；任意成功则保留热更，全部失败才 reload |
 | CSS 更新 | `import(newUrl)` 重新加载 CSS 模块 |
 | 断线重连 | close 后轮询重连，成功后 `location.reload` |
 

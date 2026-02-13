@@ -38,6 +38,11 @@ export interface HMRFullReloadPayload extends HMRPayload {
   type: 'full-reload'
 }
 
+interface ChangedFileContext {
+  normalizedPath: string
+  changedUrl: string
+}
+
 export function createHMRServer(
   server: Server,
   serverContext: ServerContext
@@ -119,142 +124,165 @@ export function createHMRServer(
     }
   }
 
+  // 从模块图中移除指定模块，避免删除文件后依赖残留
+  function removeModuleFromGraph(moduleId: string) {
+    const normalizedModuleId = normalizePath(moduleId)
+
+    const importees = moduleGraph.get(normalizedModuleId)
+    if (importees) {
+      for (const importee of importees) {
+        const importers = importerGraph.get(importee)
+        if (importers) {
+          importers.delete(normalizedModuleId)
+          if (importers.size === 0) {
+            importerGraph.delete(importee)
+          }
+        }
+      }
+      moduleGraph.delete(normalizedModuleId)
+    }
+
+    const importers = importerGraph.get(normalizedModuleId)
+    if (importers) {
+      for (const importer of importers) {
+        const importerDeps = moduleGraph.get(importer)
+        if (importerDeps) {
+          importerDeps.delete(normalizedModuleId)
+        }
+      }
+      importerGraph.delete(normalizedModuleId)
+    }
+  }
+
   // 获取需要更新的边界模块
   function getBoundaryModules(changedFile: string): string[] {
+    const normalizedChangedFile = normalizePath(changedFile)
     const boundaries: string[] = []
     const visited = new Set<string>()
-    const visiting = new Set<string>() // 用于检测循环依赖
-    
-    function traverse(file: string): boolean {
-      // 如果已经访问过，说明是边界模块
+    const queue: string[] = [normalizedChangedFile]
+
+    // 以变更模块为起点向上收集所有导入链路候选边界
+    while (queue.length > 0) {
+      const file = queue.shift()!
       if (visited.has(file)) {
-        return boundaries.includes(file)
+        continue
       }
-      
-      // 检测循环依赖
-      if (visiting.has(file)) {
-        // 循环依赖情况下，将当前文件作为边界
-        if (!boundaries.includes(file)) {
-          boundaries.push(file)
-        }
-        return true
-      }
-      
-      visiting.add(file)
-      
+      visited.add(file)
+      boundaries.push(file)
+
       const importers = importerGraph.get(file)
       if (!importers || importers.size === 0) {
-        // 如果没有导入者，这个文件本身就是边界
-        boundaries.push(file)
-        visiting.delete(file)
-        visited.add(file)
-        return true
+        continue
       }
-      
-      let hasBoundary = false
       for (const importer of importers) {
-        if (traverse(importer)) {
-          hasBoundary = true
+        if (!visited.has(importer)) {
+          queue.push(importer)
         }
       }
-      
-      // 如果所有导入者都不是边界，则当前文件是边界
-      if (!hasBoundary) {
-        boundaries.push(file)
-      }
-      
-      visiting.delete(file)
-      visited.add(file)
-      return true
     }
-    
-    const normalizedChangedFile = normalizePath(changedFile)
-    traverse(normalizedChangedFile)
+
     return boundaries
+  }
+
+  function isValidFilePath(filePath: unknown): filePath is string {
+    return typeof filePath === 'string' && filePath.length > 0
+  }
+
+  function toChangedFileContext(filePath: string): ChangedFileContext {
+    const normalizedPath = normalizePath(filePath)
+    const changedUrl = normalizePath(
+      fsPathToUrl(normalizedPath, serverContext.root)
+    )
+    return { normalizedPath, changedUrl }
+  }
+
+  function invalidateChangedFileCaches(context: ChangedFileContext) {
+    invalidateTransformCache(context.normalizedPath)
+    invalidateTransformCache(context.changedUrl)
+  }
+
+  function sendFullReload(path?: string) {
+    const payload: HMRFullReloadPayload = { type: 'full-reload' }
+    if (path) {
+      payload.path = path
+    }
+    send(payload)
+  }
+
+  function sendJsUpdate(changedUrl: string) {
+    const boundaryModules = getBoundaryModules(changedUrl)
+    if (boundaryModules.length === 0) {
+      console.log(colors.yellow(`[HMR] 找不到 ${changedUrl} 的HMR边界，执行全量刷新`))
+      sendFullReload(changedUrl)
+      return
+    }
+
+    const timestamp = Date.now()
+    const updates: Update[] = boundaryModules.map((boundaryModule) => ({
+      type: 'js-update',
+      path: boundaryModule,
+      acceptedPath: changedUrl,
+      timestamp,
+    }))
+
+    console.log(
+      colors.green(
+        `[HMR] 发送模块更新: ${changedUrl} -> 边界模块: ${boundaryModules.join(', ')}`
+      )
+    )
+    send({
+      type: 'update',
+      updates,
+    } as HMRUpdatePayload)
+  }
+
+  function sendCssUpdate(changedUrl: string) {
+    const timestamp = Date.now()
+    const updates: Update[] = [
+      {
+        type: 'css-update',
+        path: changedUrl,
+        acceptedPath: changedUrl,
+        timestamp,
+      },
+    ]
+
+    console.log(colors.green(`[HMR] CSS热更新: ${changedUrl}`))
+    send({
+      type: 'update',
+      updates,
+    } as HMRUpdatePayload)
   }
 
   // 文件变化处理
   watcher.on('change', async (filePath) => {
     try {
-      // 验证文件路径
-      if (!filePath || typeof filePath !== 'string') {
+      if (!isValidFilePath(filePath)) {
         console.warn(colors.yellow('[HMR] 无效的文件路径:'), filePath)
         return
       }
 
-      const normalizedPath = normalizePath(filePath)
-      const changedUrl = normalizePath(
-        fsPathToUrl(normalizedPath, serverContext.root)
-      )
-      invalidateTransformCache(normalizedPath)
-      invalidateTransformCache(changedUrl)
+      const context = toChangedFileContext(filePath)
+      invalidateChangedFileCaches(context)
       
       // 如果相对路径为空或无效，跳过处理
-      if (!normalizedPath) {
-        console.warn(colors.yellow('[HMR] 无法计算相对路径:'), normalizedPath)
+      if (!context.normalizedPath) {
+        console.warn(colors.yellow('[HMR] 无法计算相对路径:'), context.normalizedPath)
         return
       }
       
-      console.log(colors.cyan(`[HMR] 文件已更新: ${normalizedPath}`))
+      console.log(colors.cyan(`[HMR] 文件已更新: ${context.normalizedPath}`))
 
       // 处理不同类型的文件更新
       if (filePath.endsWith('.html')) {
-        // HTML文件变化 - 全量刷新
-        send({
-          type: 'full-reload',
-          path: changedUrl
-        } as HMRFullReloadPayload)
-      } else if (isJsRequest(filePath) || filePath.endsWith('.vue') || filePath.endsWith('.ts') || filePath.endsWith('.tsx') || filePath.endsWith('.jsx')) {
-        // JS/TS/Vue文件变化
-        const timestamp = Date.now()
-        
-        // 获取受影响的边界模块
-        const boundaryModules = getBoundaryModules(changedUrl)
-        
-        if (boundaryModules.length === 0) {
-          // 如果找不到边界模块，进行全量刷新
-          console.log(colors.yellow(`[HMR] 找不到 ${changedUrl} 的HMR边界，执行全量刷新`))
-          send({
-            type: 'full-reload',
-            path: changedUrl
-          } as HMRFullReloadPayload)
-        } else {
-          // 为每个边界模块创建更新信息
-          const updates: Update[] = boundaryModules.map(boundaryModule => ({
-            type: 'js-update' as const,
-            path: boundaryModule,
-            acceptedPath: changedUrl,
-            timestamp,
-          }))
-          
-          console.log(colors.green(`[HMR] 发送模块更新: ${changedUrl} -> 边界模块: ${boundaryModules.join(', ')}`))
-          send({
-            type: 'update',
-            updates,
-          } as HMRUpdatePayload)
-        }
+        sendFullReload(context.changedUrl)
+      } else if (isJsRequest(filePath)) {
+        sendJsUpdate(context.changedUrl)
       } else if (isCssRequest(filePath)) {
-        // CSS文件变化 - 总是可以热更新
-        const timestamp = Date.now()
-        const updates: Update[] = [{
-          type: 'css-update',
-          path: changedUrl,
-          acceptedPath: changedUrl,
-          timestamp,
-        }]
-        
-        console.log(colors.green(`[HMR] CSS热更新: ${changedUrl}`))
-        send({
-          type: 'update',
-          updates,
-        } as HMRUpdatePayload)
+        sendCssUpdate(context.changedUrl)
       } else {
-        // 其他文件变化 - 全量刷新
-        console.log(colors.yellow(`[HMR] 未知文件类型 ${changedUrl}，执行全量刷新`))
-        send({
-          type: 'full-reload',
-          path: changedUrl
-        } as HMRFullReloadPayload)
+        console.log(colors.yellow(`[HMR] 未知文件类型 ${context.changedUrl}，执行全量刷新`))
+        sendFullReload(context.changedUrl)
       }
     } catch (error) {
       console.error(colors.red('[HMR] 处理文件更新错误:'), error)
@@ -270,23 +298,16 @@ export function createHMRServer(
 
   watcher.on('add', (filePath) => {
     try {
-      // 验证文件路径
-      if (!filePath || typeof filePath !== 'string') {
+      if (!isValidFilePath(filePath)) {
         console.warn('[HMR] 无效的文件路径: ' + filePath)
         return
       }
 
-      const normalizedPath = normalizePath(filePath)
-      const changedUrl = normalizePath(
-        fsPathToUrl(normalizedPath, serverContext.root)
-      )
-      invalidateTransformCache(normalizedPath)
-      invalidateTransformCache(changedUrl)
-      console.log(colors.green(`[HMR] 文件已添加: ${normalizedPath}`))
+      const context = toChangedFileContext(filePath)
+      invalidateChangedFileCaches(context)
+      console.log(colors.green(`[HMR] 文件已添加: ${context.normalizedPath}`))
       // 新增文件触发全量刷新
-      send({
-        type: 'full-reload',
-      } as HMRFullReloadPayload)
+      sendFullReload()
     } catch (error) {
       console.error(colors.red('[HMR] 处理文件添加错误:'), error)
     }
@@ -294,23 +315,18 @@ export function createHMRServer(
 
   watcher.on('unlink', (filePath) => {
     try {
-      // 验证文件路径
-      if (!filePath || typeof filePath !== 'string') {
+      if (!isValidFilePath(filePath)) {
         console.warn('[HMR] 无效的文件路径: ' + filePath)
         return
       }
 
-      const normalizedPath = normalizePath(filePath)
-      const changedUrl = normalizePath(
-        fsPathToUrl(normalizedPath, serverContext.root)
-      )
-      invalidateTransformCache(normalizedPath)
-      invalidateTransformCache(changedUrl)
-      console.log(colors.red(`[HMR] 文件已删除: ${normalizedPath}`))
+      const context = toChangedFileContext(filePath)
+      invalidateChangedFileCaches(context)
+      removeModuleFromGraph(context.changedUrl)
+      removeModuleFromGraph(context.normalizedPath)
+      console.log(colors.red(`[HMR] 文件已删除: ${context.normalizedPath}`))
       // 删除文件触发全量刷新
-      send({
-        type: 'full-reload',
-      } as HMRFullReloadPayload)
+      sendFullReload()
     } catch (error) {
       console.error(colors.red('[HMR] 处理文件删除错误:'), error)
     }

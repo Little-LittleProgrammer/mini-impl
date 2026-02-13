@@ -39,6 +39,25 @@ interface HotModule {
     send(data: any): void
 }
 
+interface JsUpdate {
+    type: 'js-update'
+    path: string
+    acceptedPath?: string
+    timestamp: number
+}
+
+interface CssUpdate {
+    type: 'css-update'
+    path: string
+    acceptedPath?: string
+    timestamp: number
+}
+
+interface UpdatePayloadMessage {
+    type: 'update'
+    updates: Array<JsUpdate | CssUpdate>
+}
+
 // 创建HMR API
 function createHotContext(ownerPath: string): HotModule {
     if (!moduleCache[ownerPath]) {
@@ -185,6 +204,44 @@ socket.addEventListener('close', () => {
     }, 1000)
 })
 
+function isJsUpdate(update: JsUpdate | CssUpdate): update is JsUpdate {
+    return update.type === 'js-update'
+}
+
+function isCssUpdate(update: JsUpdate | CssUpdate): update is CssUpdate {
+    return update.type === 'css-update'
+}
+
+async function applyUpdatePayload(payload: UpdatePayloadMessage) {
+    const jsUpdates = payload.updates.filter(isJsUpdate)
+    const cssUpdates = payload.updates.filter(isCssUpdate)
+
+    const hasAppliedJsUpdate = await applyJsUpdates(jsUpdates)
+    applyCssUpdates(cssUpdates)
+
+    if (jsUpdates.length > 0 && !hasAppliedJsUpdate) {
+        console.log('[mini-vite] no accepted HMR boundary found, reloading page')
+        window.location.reload()
+    }
+}
+
+async function applyJsUpdates(updates: JsUpdate[]): Promise<boolean> {
+    let hasApplied = false
+    for (const update of updates) {
+        const applied = await updateModule(update)
+        if (applied) {
+            hasApplied = true
+        }
+    }
+    return hasApplied
+}
+
+function applyCssUpdates(updates: CssUpdate[]) {
+    updates.forEach(update => {
+        updateCss(update)
+    })
+}
+
 // 处理不同类型的HMR消息
 async function handleMessage(payload: any) {
     switch (payload.type) {
@@ -200,16 +257,7 @@ async function handleMessage(payload: any) {
             }
             isFirstUpdate = false
 
-            // 处理更新
-            await Promise.all(
-                payload.updates.map((update: any) => {
-                    if (update.type === 'js-update') {
-                        return updateModule(update)
-                    } else if (update.type === 'css-update') {
-                        return updateCss(update)
-                    }
-                })
-            )
+            await applyUpdatePayload(payload as UpdatePayloadMessage)
             break
         case 'full-reload':
             console.log(
@@ -256,7 +304,7 @@ function canAcceptUpdate(boundaryPath: string, acceptedPath: string): boolean {
 }
 
 // 更新JS模块
-async function updateModule(update: any) {
+async function updateModule(update: JsUpdate): Promise<boolean> {
     const { path, acceptedPath, timestamp } = update
     console.log(`[mini-vite] hot updated: ${path}`)
 
@@ -265,11 +313,8 @@ async function updateModule(update: any) {
         const updateTarget = acceptedPath || path
 
         if (!canAcceptUpdate(boundary, updateTarget)) {
-            console.log(
-                `[mini-vite] no HMR boundary found for ${path}, reloading page`
-            )
-            window.location.reload()
-            return
+            console.log(`[mini-vite] boundary skipped: ${boundary} does not accept ${updateTarget}`)
+            return false
         }
 
         // 添加时间戳防止缓存
@@ -278,8 +323,7 @@ async function updateModule(update: any) {
         // 获取边界模块的缓存
         const boundaryCache = moduleCache[boundary]
         if (!boundaryCache) {
-            window.location.reload()
-            return
+            return false
         }
 
         // 执行清理回调
@@ -321,14 +365,16 @@ async function updateModule(update: any) {
         }
 
         console.log(`[mini-vite] hot update applied for ${path}`)
+        return true
     } catch (error) {
         console.error(`[mini-vite] failed to update module ${path}:`, error)
         showErrorOverlay(error)
+        return false
     }
 }
 
 // 更新CSS
-function updateCss(update: any) {
+function updateCss(update: CssUpdate) {
     const { path, timestamp } = update
     console.log(`[mini-vite] css hot updated: ${path}`)
 
