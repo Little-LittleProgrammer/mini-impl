@@ -66,10 +66,11 @@ jobs:
       - name: Post Review Comment
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPORT_CONTENT: ${{ steps.review.outputs.report_content }}
         uses: actions/github-script@v7
-        with: 
+        with:
           script: |
-            const report = `${{ steps.review.outputs.report_content }}`;
+            const report = process.env.REPORT_CONTENT;
 
             // 只有当 report 不为空时，才发布评论
             if (report && !report.includes("没有发现明显问题")) {
