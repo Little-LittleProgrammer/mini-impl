@@ -118,10 +118,172 @@ if (import.meta.hot) {
 
 服务端维护两张图：
 
-- `moduleGraph: importer -> Set(importees)`
-- `importerGraph: importee -> Set(importers)`
+- `moduleGraph: importer -> Set(importees)` — 记录每个模块导入了哪些模块
+- `importerGraph: importee -> Set(importers)` — 记录每个模块被哪些模块导入
 
 其中 `importAnalysis` 每次 transform 都会上报 importer 和 importees（即使 importees 为空，也会更新，用于清理旧依赖）。
+
+#### 5.2.1 为什么需要两张图？
+
+模块依赖关系是双向的，但在不同场景下需要不同的查询方向：
+
+| 场景 | 需要的查询方向 | 使用的图 |
+| --- | --- | --- |
+| 文件变更时查找影响范围 | 从变更模块向上找导入者 | `importerGraph` |
+| 清理模块时删除依赖关系 | 从被删除模块向下找依赖 | `moduleGraph` |
+| 分析模块依赖树 | 从入口向下遍历 | `moduleGraph` |
+
+两张图互为反向索引，使查询复杂度从 O(n) 降到 O(1)。
+
+#### 5.2.2 数据结构设计
+
+```ts
+// 模块 -> 其导入的模块们（正向依赖）
+const moduleGraph = new Map<string, Set<string>>()
+// 模块 -> 导入它的模块们（反向依赖）
+const importerGraph = new Map<string, Set<string>>()
+```
+
+使用 `Set` 而非数组的原因：
+
+1. **自动去重**：同一模块可能被多次导入，Set 保证唯一性
+2. **高效删除**：`Set.delete()` 时间复杂度 O(1)
+3. **快速判断存在**：`Set.has()` 时间复杂度 O(1)
+
+#### 5.2.3 模块图更新流程
+
+当 `importAnalysis` 插件解析完一个模块的 import 语句后，调用 `updateModuleGraph(importer, importees)`：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  updateModuleGraph('/src/main.ts', ['/src/App.ts', '/src/store.ts'])│
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│  1. 清除旧的依赖关系                                           │
+│     - 从 moduleGraph 获取旧的 importees                        │
+│     - 遍历旧 importees，从 importerGraph 中删除当前 importer    │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│  2. 设置新的依赖关系                                           │
+│     - moduleGraph.set(importer, new Set(importees))          │
+│     - 遍历 importees，向 importerGraph 添加反向引用             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**为什么要先清除旧依赖？**
+
+模块内容可能变化导致 import 语句变化。例如：
+
+```js
+// 第一次编译
+import { foo } from './a'
+import { bar } from './b'
+
+// 修改后重新编译
+import { foo } from './a'
+// 删除了对 b 的导入
+```
+
+如果不清理旧依赖，`importerGraph` 中 `./b` 仍会指向当前模块，导致 HMR 边界计算错误。
+
+#### 5.2.4 边界查找算法（BFS）
+
+当文件变更时，通过 `getBoundaryModules(changedFile)` 查找所有候选边界：
+
+```ts
+function getBoundaryModules(changedFile: string): string[] {
+  const boundaries: string[] = []
+  const visited = new Set<string>()  // 防止循环依赖导致死循环
+  const queue: string[] = [changedFile]
+
+  while (queue.length > 0) {
+    const file = queue.shift()!
+    if (visited.has(file)) continue
+    visited.add(file)
+    boundaries.push(file)  // 当前模块也是候选边界
+
+    // 继续向上查找导入者
+    const importers = importerGraph.get(file)
+    if (importers) {
+      for (const importer of importers) {
+        if (!visited.has(importer)) {
+          queue.push(importer)
+        }
+      }
+    }
+  }
+
+  return boundaries
+}
+```
+
+**算法示意：**
+
+```
+假设文件结构：
+main.ts → App.ts → utils.ts → helper.ts
+
+当 helper.ts 变更时：
+1. 队列初始: [helper.ts]
+2. 处理 helper.ts → boundaries: [helper.ts], 队列: [utils.ts]
+3. 处理 utils.ts → boundaries: [helper.ts, utils.ts], 队列: [App.ts]
+4. 处理 App.ts → boundaries: [helper.ts, utils.ts, App.ts], 队列: [main.ts]
+5. 处理 main.ts → boundaries: [helper.ts, utils.ts, App.ts, main.ts], 队列: []
+6. 返回 [helper.ts, utils.ts, App.ts, main.ts]
+```
+
+客户端会从第一个候选开始尝试，找到第一个能接受更新的边界就停止。
+
+#### 5.2.5 循环依赖处理
+
+循环依赖是前端项目中的常见问题：
+
+```
+A.ts → B.ts → C.ts → A.ts (循环)
+```
+
+BFS 配合 `visited` Set 可以天然处理循环依赖：
+
+```
+处理 A.ts → visited: {A}
+处理 B.ts → visited: {A, B}
+处理 C.ts → visited: {A, B, C}
+尝试处理 A.ts → 已在 visited 中，跳过
+```
+
+#### 5.2.6 模块图的清理
+
+当文件被删除时，需要从图中移除相关节点和边：
+
+```ts
+function removeModuleFromGraph(moduleId: string) {
+  // 1. 清理 moduleGraph（正向依赖）
+  const importees = moduleGraph.get(moduleId)
+  if (importees) {
+    for (const importee of importees) {
+      // 从被依赖者的 importerGraph 中删除当前模块
+      importerGraph.get(importee)?.delete(moduleId)
+    }
+    moduleGraph.delete(moduleId)
+  }
+
+  // 2. 清理 importerGraph（反向依赖）
+  const importers = importerGraph.get(moduleId)
+  if (importers) {
+    for (const importer of importers) {
+      // 从依赖者的 moduleGraph 中删除当前模块
+      moduleGraph.get(importer)?.delete(moduleId)
+    }
+    importerGraph.delete(moduleId)
+  }
+}
+```
+
+这确保删除文件后不会残留无效的依赖关系，避免后续 HMR 边界计算出错。
 
 ### 5.3 候选边界计算
 
