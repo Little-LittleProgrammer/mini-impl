@@ -1,11 +1,19 @@
 import { isArray, isObject } from '@vue/shared'
 import { createVNode, isVNode, VNode } from './vnode'
 
+
+// h('div', children)
+// h('div', props, children)
+// h('div', [children])
+// h(Component, props, children)
 export function h(type: any, propsOrChildren?: any, children?: any): VNode {
 	// 获取用户传递的参数数量
 	const l = arguments.length
 	// 如果用户只传递了两个参数，那么证明第二个参数可能是 props , 也可能是 children
 	if (l === 2) {
+        // h('div', { class: 'box' })
+        // h('div', 'text')
+        // h('div', [VNode, VNode])
 		// 如果 第二个参数是对象，但不是数组。则第二个参数只有两种可能性：1. VNode 2.普通的 props
 		if (isObject(propsOrChildren) && !isArray(propsOrChildren)) {
 			// 如果是 VNode，则 第二个参数代表了 children
