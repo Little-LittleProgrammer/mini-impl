@@ -123,6 +123,8 @@ if (import.meta.hot) {
 
 其中 `importAnalysis` 每次 transform 都会上报 importer 和 importees（即使 importees 为空，也会更新，用于清理旧依赖）。
 
+使用 es-module-lexer 维护依赖图，不过这个只能解析静态的顶层 import/export，不处理动态 import() 内的表达式。Vite 处理动态 import 时用正则做 fallback 匹配。
+
 #### 5.2.1 为什么需要两张图？
 
 模块依赖关系是双向的，但在不同场景下需要不同的查询方向：
